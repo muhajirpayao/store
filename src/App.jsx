@@ -10,20 +10,71 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const fmt = (n) =>
   "₱" + parseFloat(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+function fuzzyScore(query, target) {
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+  if (t === q) return 100;
+  if (t.startsWith(q)) return 90;
+  if (t.includes(q)) return 80;
+  let matches = 0;
+  let ti = 0;
+  for (let qi = 0; qi < q.length && ti < t.length; qi++) {
+    while (ti < t.length && t[ti] !== q[qi]) ti++;
+    if (ti < t.length) { matches++; ti++; }
+  }
+  const score = matches / Math.max(q.length, 1);
+  return score >= 0.6 ? Math.round(score * 70) : 0;
+}
+
+function fuzzyMatch(query, items) {
+  if (!query.trim()) return [];
+  return items
+    .map((item) => ({ item, score: fuzzyScore(query, item.name) }))
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((r) => r.item);
+}
+
+// Purple theme palette inspired by reference image
 const T = {
   dark: {
-    bg:"bg-[#1a1a1a]",surface:"bg-[#242424]",card:"bg-[#2a2a2a]",input:"bg-[#1e1e1e]",
-    border:"border-[#3a3a3a]",divide:"divide-[#3a3a3a]",text:"text-[#ececec]",
-    textMuted:"text-[#888]",textFaint:"text-[#555]",hover:"hover:bg-[#333]",
-    accent:"text-[#c96442]",accentBg:"bg-[#c96442]",accentHov:"hover:bg-[#b85a3b]",
-    btnSec:"bg-[#333] hover:bg-[#3d3d3d] text-[#ececec]",tblHead:"bg-[#1e1e1e]",rowHov:"hover:bg-[#2f2f2f]",
+    bg: "bg-[#1a0a2e]",
+    surface: "bg-[#231040]",
+    card: "bg-[#2d1854]",
+    input: "bg-[#1e0d38]",
+    border: "border-[#4a2a7a]",
+    divide: "divide-[#3d2068]",
+    text: "text-[#f0eaff]",
+    textMuted: "text-[#a98fd4]",
+    textFaint: "text-[#5a3d8a]",
+    hover: "hover:bg-[#2d1854]",
+    accent: "text-[#b47dff]",
+    accentBg: "bg-[#7c3aed]",
+    accentHov: "hover:bg-[#6d28d9]",
+    btnSec: "bg-[#2d1854] hover:bg-[#3d2068] text-[#f0eaff]",
+    tblHead: "bg-[#1e0d38]",
+    rowHov: "hover:bg-[#2d1854]",
+    suggestion: "bg-[#231040] hover:bg-[#2d1854]",
   },
   light: {
-    bg:"bg-[#f5f0eb]",surface:"bg-[#faf7f4]",card:"bg-white",input:"bg-[#f0ece7]",
-    border:"border-[#e0d9d2]",divide:"divide-[#e0d9d2]",text:"text-[#1f1a16]",
-    textMuted:"text-[#7a6f66]",textFaint:"text-[#b0a89f]",hover:"hover:bg-[#ede8e2]",
-    accent:"text-[#c96442]",accentBg:"bg-[#c96442]",accentHov:"hover:bg-[#b85a3b]",
-    btnSec:"bg-[#ede8e2] hover:bg-[#e0d9d2] text-[#1f1a16]",tblHead:"bg-[#f0ece7]",rowHov:"hover:bg-[#f7f3ef]",
+    bg: "bg-[#f3eeff]",
+    surface: "bg-white",
+    card: "bg-[#faf6ff]",
+    input: "bg-[#ede6ff]",
+    border: "border-[#d4b8ff]",
+    divide: "divide-[#d4b8ff]",
+    text: "text-[#1a0a2e]",
+    textMuted: "text-[#7c4fb5]",
+    textFaint: "text-[#c0a0f0]",
+    hover: "hover:bg-[#ede6ff]",
+    accent: "text-[#7c3aed]",
+    accentBg: "bg-[#7c3aed]",
+    accentHov: "hover:bg-[#6d28d9]",
+    btnSec: "bg-[#ede6ff] hover:bg-[#ddd0ff] text-[#1a0a2e]",
+    tblHead: "bg-[#ede6ff]",
+    rowHov: "hover:bg-[#f3eeff]",
+    suggestion: "bg-white hover:bg-[#f3eeff]",
   },
 };
 
@@ -32,9 +83,9 @@ function Toast({ toasts }) {
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id} className={`px-4 py-3 rounded-2xl text-sm font-medium shadow-xl pointer-events-auto
-          ${t.type==="success"?"bg-emerald-600 text-white":""}
-          ${t.type==="error"?"bg-red-500 text-white":""}
-          ${t.type==="info"?"bg-[#c96442] text-white":""}`}>
+          ${t.type === "success" ? "bg-emerald-600 text-white" : ""}
+          ${t.type === "error" ? "bg-red-500 text-white" : ""}
+          ${t.type === "info" ? "bg-[#7c3aed] text-white" : ""}`}>
           {t.msg}
         </div>
       ))}
@@ -42,188 +93,347 @@ function Toast({ toasts }) {
   );
 }
 
-function useVoiceSearch(onResult, onError) {
+function MicIcon({ listening }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="9" y="2" width="6" height="12" rx="3" fill={listening ? "#ef4444" : "currentColor"} />
+      <path d="M5 11a7 7 0 0 0 14 0" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" fill="none" />
+      <line x1="12" y1="18" x2="12" y2="22" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" />
+      <line x1="9" y1="22" x2="15" y2="22" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function useVoiceSearch(items, onResult, onError) {
   const [listening, setListening] = useState(false);
   const recRef = useRef(null);
   const supported = typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
   const start = useCallback(() => {
-    if (!supported) { onError?.("Voice search not supported in this browser."); return; }
+    if (!supported) { onError?.("Voice search not supported."); return; }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const r = new SR();
     r.lang = "en-PH";
     r.interimResults = false;
-    r.maxAlternatives = 1;
+    r.maxAlternatives = 3;
     recRef.current = r;
-    r.onstart  = () => setListening(true);
-    r.onend    = () => setListening(false);
-    r.onerror  = () => { setListening(false); onError?.("Could not hear you. Try again."); };
-    r.onresult = (e) => { const txt = e.results[0][0].transcript.trim(); onResult(txt); };
+    r.onstart = () => setListening(true);
+    r.onend = () => setListening(false);
+    r.onerror = () => { setListening(false); onError?.("Could not hear you. Try again."); };
+    r.onresult = (e) => {
+      const alts = Array.from({ length: e.results[0].length }, (_, i) => e.results[0][i].transcript.trim());
+      let best = null;
+      let bestScore = 0;
+      for (const alt of alts) {
+        for (const item of items) {
+          const score = fuzzyScore(alt, item.name);
+          if (score > bestScore) { bestScore = score; best = item; }
+        }
+      }
+      if (best && bestScore >= 50) {
+        onResult(best.name, best);
+      } else {
+        const matches = fuzzyMatch(alts[0], items);
+        if (matches.length) onResult(matches[0].name, matches[0]);
+        else onError?.(`Could not match "${alts[0]}" to any item.`);
+      }
+    };
     r.start();
-  }, [supported, onResult, onError]);
+  }, [supported, items, onResult, onError]);
 
   const stop = useCallback(() => { recRef.current?.stop(); setListening(false); }, []);
   return { listening, start, stop, supported };
 }
 
+// ── FIXED BARCODE SCANNER ─────────────────────────────────────────────────────
 function BarcodeScanner({ onDetect, onClose }) {
-  const videoRef  = useRef(null);
+  const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-  const rafRef    = useRef(null);
-  const readerRef = useRef(null);
+  const rafRef = useRef(null);
+  const mountedRef = useRef(true);
   const [status, setStatus] = useState("starting");
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+
     async function start() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
         });
-        if (!mounted) { stream.getTracks().forEach((t) => t.stop()); return; }
+        if (!mountedRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
         const video = videoRef.current;
+        if (!video) return;
         video.srcObject = stream;
-        video.setAttribute("playsinline", true);
+        video.setAttribute("playsinline", "true");
         await video.play();
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
+        // Wait for ZXing to be available
         let attempts = 0;
-        while (!window.ZXing && attempts < 30) {
+        while (!window.ZXing && attempts < 50) {
           await new Promise((r) => setTimeout(r, 200));
           attempts++;
         }
-        if (!window.ZXing) { setStatus("error"); return; }
+        if (!window.ZXing || !mountedRef.current) { setStatus("error"); return; }
+
         setStatus("active");
 
-        const reader = new window.ZXing.BrowserMultiFormatReader();
-        readerRef.current = reader;
+        const hints = new Map();
+        // Enable all common formats
+        hints.set(window.ZXing.DecodeHintType?.TRY_HARDER, true);
+
+        const reader = new window.ZXing.BrowserMultiFormatReader(hints);
         const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
 
         function tick() {
-          if (!mounted || !videoRef.current) return;
+          if (!mountedRef.current || !videoRef.current || !canvas) return;
           const v = videoRef.current;
-          if (v.readyState === v.HAVE_ENOUGH_DATA) {
-            canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+          if (v.readyState >= v.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
+            canvas.width = v.videoWidth;
+            canvas.height = v.videoHeight;
+            const ctx = canvas.getContext("2d");
             ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
             try {
               const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const lum = new window.ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-              const bmp = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(lum));
+              const lum = new window.ZXing.RGBLuminanceSource(
+                imgData.data, canvas.width, canvas.height
+              );
+              const bmp = new window.ZXing.BinaryBitmap(
+                new window.ZXing.HybridBinarizer(lum)
+              );
               const result = reader.decode(bmp);
-              if (result && mounted) { cleanup(); onDetect(result.getText()); return; }
-            } catch (_) {}
+              if (result && mountedRef.current) {
+                cleanup();
+                onDetect(result.getText());
+                return;
+              }
+            } catch (_) {
+              // No barcode found this frame — keep scanning
+            }
           }
           rafRef.current = requestAnimationFrame(tick);
         }
         rafRef.current = requestAnimationFrame(tick);
-      } catch { if (mounted) setStatus("error"); }
+      } catch (err) {
+        console.error("Camera error:", err);
+        if (mountedRef.current) setStatus("error");
+      }
     }
+
     function cleanup() {
-      mounted = false;
+      mountedRef.current = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (streamRef.current) streamRef.current.getTracks().forEach((tr) => tr.stop());
-      if (readerRef.current) { try { readerRef.current.reset(); } catch (_) {} }
     }
+
     start();
     return cleanup;
   }, []);
 
   return (
-    <div className="mt-3 rounded-2xl overflow-hidden border border-[#c96442]/40">
-      <div className="relative bg-black" style={{minHeight:180}}>
-        <video ref={videoRef} className="w-full block" muted playsInline style={{maxHeight:260}} />
+    <div className="mt-3 rounded-2xl overflow-hidden border border-[#7c3aed]/40">
+      <div className="relative bg-black" style={{ minHeight: 260 }}>
+        {/* Bigger video */}
+        <video
+          ref={videoRef}
+          className="w-full block"
+          muted
+          playsInline
+          style={{ maxHeight: 360, objectFit: "cover" }}
+        />
         <canvas ref={canvasRef} className="hidden" />
+
+        {/* Scan overlay */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="relative w-52 h-28" style={{boxShadow:"0 0 0 9999px rgba(0,0,0,0.55)",borderRadius:8}}>
-            {[["top-0 left-0","border-t-2 border-l-2"],["top-0 right-0","border-t-2 border-r-2"],
-              ["bottom-0 left-0","border-b-2 border-l-2"],["bottom-0 right-0","border-b-2 border-r-2"]
-            ].map(([pos,brd],i) => <span key={i} className={`absolute w-5 h-5 ${pos} ${brd} border-[#c96442] rounded-sm`} />)}
-            {status==="active" && <div className="absolute inset-x-0 top-0 h-0.5 bg-[#c96442]" style={{animation:"scanline 1.8s ease-in-out infinite"}} />}
+          <div
+            className="relative"
+            style={{
+              width: "70%",
+              height: 120,
+              boxShadow: "0 0 0 9999px rgba(0,0,0,0.5)",
+              borderRadius: 8,
+            }}
+          >
+            {[
+              ["top-0 left-0", "border-t-2 border-l-2"],
+              ["top-0 right-0", "border-t-2 border-r-2"],
+              ["bottom-0 left-0", "border-b-2 border-l-2"],
+              ["bottom-0 right-0", "border-b-2 border-r-2"],
+            ].map(([pos, brd], i) => (
+              <span key={i} className={`absolute w-6 h-6 ${pos} ${brd} border-[#7c3aed] rounded-sm`} />
+            ))}
+            {status === "active" && (
+              <div
+                className="absolute inset-x-0 h-0.5 bg-[#7c3aed]"
+                style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }}
+              />
+            )}
           </div>
         </div>
-        {status==="starting" && <div className="absolute inset-0 flex items-center justify-center bg-black/70"><span className="text-white text-sm animate-pulse">Starting camera…</span></div>}
-        {status==="error"    && <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-4"><span className="text-red-400 text-sm text-center">Camera unavailable. Allow camera access in your browser settings.</span></div>}
+
+        {status === "starting" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+            <span className="text-white text-sm animate-pulse">Starting camera…</span>
+          </div>
+        )}
+        {status === "error" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-4">
+            <span className="text-red-400 text-sm text-center">
+              Camera unavailable or permission denied.
+            </span>
+          </div>
+        )}
+        {status === "active" && (
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center">
+            <span className="text-xs text-white/60 bg-black/40 px-3 py-1 rounded-full">
+              Point camera at barcode
+            </span>
+          </div>
+        )}
       </div>
-      <button onClick={onClose} className="w-full py-2.5 text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition">✕ Close Camera</button>
+      <button
+        onClick={onClose}
+        className="w-full py-2.5 text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition"
+      >
+        Close Camera
+      </button>
     </div>
   );
 }
 
-function HomePage({ onEnter, t }) {
-  const features = [
-    {icon:"🛒",title:"Point of Sale",desc:"Fast checkout with barcode scanning and cash change calculator."},
-    {icon:"📦",title:"Inventory",desc:"Add, edit, and search products with categories and barcodes."},
-    {icon:"☁️",title:"Cloud Sync",desc:"All items saved to Supabase — synced across devices in real time."},
-  ];
+// ── HOMEPAGE ──────────────────────────────────────────────────────────────────
+function HomePage({ onEnter, t, dark, setDark }) {
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center px-6 py-16 ${t.bg} transition-colors duration-300`}>
-      <div className="fixed inset-0 pointer-events-none opacity-[0.03]"
-        style={{backgroundImage:"linear-gradient(#888 1px,transparent 1px),linear-gradient(90deg,#888 1px,transparent 1px)",backgroundSize:"40px 40px"}} />
-      <div className="relative z-10 flex flex-col items-center max-w-lg w-full text-center gap-8">
-        <div className="flex flex-col items-center gap-3">
-          <div className={`w-20 h-20 rounded-3xl ${t.card} ${t.border} border flex items-center justify-center shadow-xl`}><span className="text-4xl">🏪</span></div>
-          <div>
-            <h1 className={`text-4xl font-bold tracking-tight ${t.text}`}>Inah <span className="text-[#c96442]">Store</span></h1>
-            <p className={`text-sm mt-1 ${t.textMuted}`}>Point of Sale System</p>
-          </div>
+    <div className="min-h-screen flex flex-col relative overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #1a0a2e 0%, #4a1a8a 50%, #7c3aed 100%)" }}>
+      {/* Decorative blobs */}
+      <div className="absolute top-0 left-0 w-64 h-64 rounded-full opacity-20"
+        style={{ background: "radial-gradient(circle, #b47dff, transparent)", transform: "translate(-30%, -30%)" }} />
+      <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full opacity-20"
+        style={{ background: "radial-gradient(circle, #7c3aed, transparent)", transform: "translate(30%, 30%)" }} />
+      <div className="absolute inset-0 opacity-[0.03]"
+        style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "48px 48px" }} />
+
+      {/* Top bar */}
+      <div className="relative z-30 flex items-center justify-between px-6 pt-6">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🏪</span>
+          <span className="text-white font-bold text-lg tracking-wide">Inah <span className="text-[#c4a0ff]">Store</span></span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
-          {features.map((f) => (
-            <div key={f.title} className={`${t.card} ${t.border} border rounded-2xl p-4 text-left transition hover:shadow-md`}>
-              <span className="text-2xl mb-2 block">{f.icon}</span>
-              <p className={`text-sm font-semibold ${t.text} mb-1`}>{f.title}</p>
-              <p className={`text-xs leading-relaxed ${t.textMuted}`}>{f.desc}</p>
-            </div>
-          ))}
-        </div>
-        <button onClick={onEnter} className="bg-[#c96442] hover:bg-[#b85a3b] active:scale-95 text-white font-semibold px-10 py-3.5 rounded-2xl text-base transition-all shadow-lg shadow-[#c96442]/30">
-          Open POS System →
+        <button onClick={() => setDark(d => !d)}
+          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-base transition">
+          {dark ? "☀️" : "🌙"}
         </button>
-        <p className={`text-xs ${t.textFaint}`}>Tap to start your session</p>
+      </div>
+
+      {/* Hero */}
+      <div className="relative z-30 flex-1 flex flex-col items-center justify-center px-8 text-center pb-20">
+        <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-2xl"
+          style={{ background: "linear-gradient(135deg, #9f67ff, #7c3aed)", boxShadow: "0 20px 60px rgba(124,58,237,0.5)" }}>
+          <span className="text-5xl">🏪</span>
+        </div>
+        <h1 className="text-5xl font-black text-white leading-tight mb-3 tracking-tight">
+          Inah Store
+        </h1>
+        <p className="text-white/60 text-lg mb-12 leading-relaxed max-w-xs">
+          Bring your sales &amp; inventory together
+        </p>
+        <button onClick={onEnter}
+          className="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl shadow-xl transition-all active:scale-95"
+          style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)", boxShadow: "0 12px 40px rgba(124,58,237,0.5)" }}>
+          →
+        </button>
+        <p className="text-white/30 text-xs mt-4 uppercase tracking-widest">tap to open</p>
+      </div>
+
+      {/* Feature pills */}
+      <div className="relative z-30 flex justify-center gap-3 pb-10 px-6 flex-wrap">
+        {[["🛒", "POS"], ["📦", "Inventory"], ["☁️", "Cloud"]].map(([icon, label]) => (
+          <div key={label} className="flex items-center gap-2 text-white text-sm px-4 py-2 rounded-full border border-white/20"
+            style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(8px)" }}>
+            <span>{icon}</span><span>{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
+// ── POS TAB ───────────────────────────────────────────────────────────────────
 function PosTab({ items, addToast, t }) {
-  const [cart, setCart]               = useState([]);
-  const [search, setSearch]           = useState("");
-  const [cash, setCashVal]            = useState("");
+  const [cart, setCart] = useState([]);
+  const [search, setSearch] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSugg, setShowSugg] = useState(false);
+  const [cash, setCashVal] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
+  const searchRef = useRef(null);
+  const suggRef = useRef(null);
 
-  const total   = cart.reduce((s,c) => s + c.price * c.qty, 0);
-  const count   = cart.reduce((s,c) => s + c.qty, 0);
+  const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
+  const count = cart.reduce((s, c) => s + c.qty, 0);
   const cashNum = parseFloat(cash) || 0;
-  const change  = cashNum - total;
+  const change = cashNum - total;
+
+  useEffect(() => {
+    if (search.trim().length === 0) { setSuggestions([]); setShowSugg(false); return; }
+    const matches = fuzzyMatch(search, items);
+    setSuggestions(matches);
+    setShowSugg(matches.length > 0);
+  }, [search, items]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (suggRef.current && !suggRef.current.contains(e.target) &&
+        searchRef.current && !searchRef.current.contains(e.target)) {
+        setShowSugg(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const addItemToCart = useCallback((item) => {
+    setCart((prev) => {
+      const ex = prev.find((c) => c.id === item.id);
+      return ex ? prev.map((c) => c.id === item.id ? { ...c, qty: c.qty + 1 } : c) : [...prev, { ...item, qty: 1 }];
+    });
+    addToast(`+1 ${item.name}`, "success");
+    setSearch("");
+    setSuggestions([]);
+    setShowSugg(false);
+    // NO autoFocus — removed
+  }, [addToast]);
 
   const posSearch = useCallback((q) => {
     const query = (q ?? search).trim().toLowerCase();
     if (!query) return;
     const item =
       items.find((i) => i.barcode && i.barcode.toLowerCase() === query) ||
-      items.find((i) => i.name.toLowerCase().includes(query));
+      items.find((i) => i.name.toLowerCase() === query) ||
+      fuzzyMatch(query, items)[0];
     if (!item) { addToast(`"${query}" not found`, "error"); return; }
-    setCart((prev) => {
-      const ex = prev.find((c) => c.id === item.id);
-      return ex ? prev.map((c) => c.id===item.id ? {...c,qty:c.qty+1} : c) : [...prev,{...item,qty:1}];
-    });
-    addToast(`+1 ${item.name}`, "success");
-    setSearch("");
-  }, [search, items, addToast]);
+    addItemToCart(item);
+  }, [search, items, addItemToCart, addToast]);
 
   const { listening, start: startVoice, stop: stopVoice, supported: voiceSupported } = useVoiceSearch(
-    (txt) => { addToast(`🎤 "${txt}"`, "info"); posSearch(txt); },
+    items,
+    (name, item) => { addToast(`🎤 "${name}"`, "info"); addItemToCart(item); },
     (err) => addToast(err, "error")
   );
 
   const changeQty = (id, delta) =>
-    setCart((prev) => prev.map((c) => c.id===id ? {...c,qty:c.qty+delta} : c).filter((c) => c.qty>0));
+    setCart((prev) => prev.map((c) => c.id === id ? { ...c, qty: c.qty + delta } : c).filter((c) => c.qty > 0));
 
-  const setCash = (amount) => setCashVal(String(Math.ceil(total/amount)*amount));
+  const setCash = (amount) => setCashVal(String(Math.ceil(total / amount) * amount));
 
   const checkout = () => {
     if (!cart.length) { addToast("Cart is empty!", "error"); return; }
@@ -232,67 +442,98 @@ function PosTab({ items, addToast, t }) {
     setCart([]); setCashVal("");
   };
 
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-[#c96442] placeholder:opacity-50 transition`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-[#7c3aed] placeholder:opacity-40 transition`;
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 flex flex-col gap-4">
+        <div className="lg:col-span-3 flex flex-col gap-3">
+          {/* Search */}
           <div className={`${t.surface} border ${t.border} rounded-2xl p-4`}>
-            <p className={`text-xs ${t.textMuted} uppercase tracking-widest mb-3`}>Scan / Search Item</p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <span className={`absolute left-3 top-1/2 -translate-y-1/2 ${t.textFaint} select-none text-sm`}>🔍</span>
-                <input className={`${inputCls} pl-9`} placeholder="Type name or scan barcode…"
-                  value={search} onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key==="Enter" && posSearch()} autoFocus />
+            <div className="flex gap-2 relative">
+              <div className="relative flex-1" ref={searchRef}>
+                <input
+                  className={`${inputCls} pr-3`}
+                  placeholder="Search item…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { posSearch(); setShowSugg(false); }
+                    if (e.key === "Escape") setShowSugg(false);
+                  }}
+                  onFocus={() => suggestions.length > 0 && setShowSugg(true)}
+                  // NO autoFocus
+                />
+                {showSugg && (
+                  <div ref={suggRef}
+                    className={`absolute top-full left-0 right-0 mt-1 rounded-xl border ${t.border} overflow-hidden z-50 shadow-xl ${t.surface}`}>
+                    {suggestions.map((item) => (
+                      <button
+                        key={item.id}
+                        onMouseDown={(e) => { e.preventDefault(); addItemToCart(item); }}
+                        className={`w-full flex items-center justify-between px-4 py-3 text-sm ${t.suggestion} transition border-b ${t.border} last:border-b-0`}>
+                        <span className={`font-medium ${t.text}`}>{item.name}</span>
+                        <span className="text-[#7c3aed] font-mono text-xs">{fmt(item.price)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {voiceSupported && (
-                <button onClick={listening ? stopVoice : startVoice} title={listening ? "Stop" : "Voice search"}
-                  className={`px-3 rounded-xl border transition text-base
-                    ${listening ? "bg-red-500 text-white border-red-500 animate-pulse" : `${t.btnSec} ${t.border} border`}`}>
-                  🎤
+                <button
+                  onClick={listening ? stopVoice : startVoice}
+                  title={listening ? "Stop listening" : "Voice search"}
+                  className={`w-10 h-10 rounded-xl border flex items-center justify-center transition
+                    ${listening
+                      ? "bg-red-500/10 border-red-500 text-red-500 animate-pulse"
+                      : `${t.btnSec} ${t.border} border ${t.textMuted}`}`}>
+                  <MicIcon listening={listening} />
                 </button>
               )}
               <button onClick={() => setScannerOpen((v) => !v)}
-                className={`px-3 rounded-xl border transition text-base
-                  ${scannerOpen ? "bg-[#c96442] text-white border-[#c96442]" : `${t.btnSec} ${t.border} border`}`}>
+                className={`w-10 h-10 rounded-xl border flex items-center justify-center transition text-base
+                  ${scannerOpen ? "bg-[#7c3aed] text-white border-[#7c3aed]" : `${t.btnSec} ${t.border} border`}`}>
                 📷
               </button>
-              <button onClick={() => posSearch()} className="bg-[#c96442] hover:bg-[#b85a3b] text-white font-semibold px-4 rounded-xl transition">Add</button>
             </div>
             {listening && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-red-400 animate-pulse">
-                <span>●</span> Listening… say an item name
+              <div className="mt-2 flex items-center gap-2 text-xs text-red-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+                Listening… say an item name
               </div>
             )}
-            {scannerOpen && <BarcodeScanner onDetect={(code) => { setScannerOpen(false); posSearch(code); }} onClose={() => setScannerOpen(false)} />}
+            {scannerOpen && (
+              <BarcodeScanner
+                onDetect={(code) => { setScannerOpen(false); posSearch(code); }}
+                onClose={() => setScannerOpen(false)}
+              />
+            )}
           </div>
 
+          {/* Cart */}
           <div className={`${t.surface} border ${t.border} rounded-2xl p-4 flex-1`}>
             <div className="flex items-center justify-between mb-3">
-              <p className={`text-xs ${t.textMuted} uppercase tracking-widest`}>Cart</p>
-              {cart.length > 0 && <button onClick={() => { if(window.confirm("Clear all items?")) setCart([]); }} className="text-xs text-red-400 hover:text-red-500 transition">Clear all</button>}
+              <p className={`text-xs ${t.textMuted} uppercase tracking-widest`}>Cart {count > 0 && `· ${count} item${count > 1 ? "s" : ""}`}</p>
+              {cart.length > 0 && (
+                <button onClick={() => { if (window.confirm("Clear cart?")) setCart([]); }} className="text-xs text-red-400 hover:text-red-500 transition">
+                  Clear
+                </button>
+              )}
             </div>
-            <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-0.5">
               {!cart.length ? (
-                <p className={`text-center ${t.textFaint} text-sm py-8`}>No items yet. Scan or search to add.</p>
+                <p className={`text-center ${t.textFaint} text-sm py-10`}>No items yet</p>
               ) : cart.map((c) => (
-                <div key={c.id} className={`${t.card} border ${t.border} rounded-xl flex items-center gap-3 p-3`}>
+                <div key={c.id} className={`${t.card} border ${t.border} rounded-xl flex items-center gap-3 px-3 py-2.5`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium ${t.text} truncate`}>{c.name}</p>
-                    <p className={`text-xs ${t.textMuted}`}>{fmt(c.price)} each · {fmt(c.price*c.qty)}</p>
+                    <p className={`text-xs ${t.textMuted} mt-0.5`}>{fmt(c.price)} × {c.qty} = <span className="text-[#7c3aed] font-mono">{fmt(c.price * c.qty)}</span></p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {[-1,1].map((d) => (
-                      <button key={d} onClick={() => changeQty(c.id,d)}
-                        className={`${t.btnSec} w-7 h-7 rounded-lg flex items-center justify-center text-base transition hover:bg-[#c96442] hover:text-white`}>
-                        {d<0?"−":"+"}
-                      </button>
-                    ))}
-                    <span className={`font-mono text-sm w-6 text-center ${t.text}`}>{c.qty}</span>
-                    <button onClick={() => setCart((p) => p.filter((x) => x.id!==c.id))}
-                      className="bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded-lg text-xs ml-1 transition">✕</button>
+                  <div className="flex items-center gap-1.5 ">
+                    <button onClick={() => changeQty(c.id, -1)} className={`${t.btnSec} w-7 h-7 rounded-lg flex items-center justify-center text-sm transition hover:bg-[#7c3aed] hover:text-white`}>−</button>
+                    <span className={`font-mono text-sm w-5 text-center ${t.text}`}>{c.qty}</span>
+                    <button onClick={() => changeQty(c.id, 1)} className={`${t.btnSec} w-7 h-7 rounded-lg flex items-center justify-center text-sm transition hover:bg-[#7c3aed] hover:text-white`}>+</button>
+                    <button onClick={() => setCart((p) => p.filter((x) => x.id !== c.id))} className="ml-1 text-red-400 hover:text-red-500 w-6 h-6 flex items-center justify-center text-sm transition">✕</button>
                   </div>
                 </div>
               ))}
@@ -300,35 +541,39 @@ function PosTab({ items, addToast, t }) {
           </div>
         </div>
 
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        {/* Right: Summary + Payment */}
+        <div className="lg:col-span-2 flex flex-col gap-3">
           <div className={`${t.surface} border ${t.border} rounded-2xl p-5 flex flex-col gap-4`}>
-            <p className={`text-xs ${t.textMuted} uppercase tracking-widest`}>Order Summary</p>
-            {[["Items",count],["Subtotal",fmt(total)]].map(([label,val]) => (
-              <div key={label} className={`flex justify-between text-sm ${t.textMuted}`}>
-                <span>{label}</span><span className="font-mono">{val}</span>
-              </div>
-            ))}
-            <div className={`border-t ${t.border} pt-3 flex justify-between text-lg font-bold text-[#c96442]`}>
-              <span>TOTAL</span><span className="font-mono">{fmt(total)}</span>
+            <div className={`flex justify-between text-sm ${t.textMuted}`}>
+              <span>Items</span><span className="font-mono">{count}</span>
             </div>
-            <div className={`${t.card} rounded-xl p-4 border ${t.border}`}>
-              <p className={`text-xs ${t.textMuted} mb-2 uppercase tracking-widest`}>Cash Tendered</p>
-              <input type="number" min="0" step="1" className={`${inputCls} font-mono text-lg mb-3`}
+            <div className={`border-t ${t.border} pt-3 flex justify-between text-xl font-bold text-[#7c3aed]`}>
+              <span>Total</span><span className="font-mono">{fmt(total)}</span>
+            </div>
+            <div>
+              <p className={`text-xs ${t.textMuted} mb-1.5`}>Cash</p>
+              <input type="number" min="0" step="1"
+                className={`${inputCls} font-mono text-lg`}
                 placeholder="₱0.00" value={cash} onChange={(e) => setCashVal(e.target.value)} />
-              <div className={`flex justify-between text-sm ${t.textMuted} mb-1`}>
+              <div className={`flex justify-between text-sm mt-2 ${t.textMuted}`}>
                 <span>Change</span>
-                <span className={`font-mono font-semibold ${cashNum===0?t.textFaint:change<0?"text-red-500":"text-emerald-500"}`}>
-                  {cashNum===0?"₱0.00":change<0?`${fmt(Math.abs(change))} short`:fmt(change)}
+                <span className={`font-mono font-semibold ${cashNum === 0 ? t.textFaint : change < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                  {cashNum === 0 ? "₱0.00" : change < 0 ? `${fmt(Math.abs(change))} short` : fmt(change)}
                 </span>
               </div>
-              {cashNum>0&&change<0&&<p className="text-xs text-red-500">Insufficient cash</p>}
             </div>
-            <button onClick={checkout} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl py-3 text-base transition">✓ Checkout</button>
+            <button onClick={checkout}
+              className="text-white font-semibold rounded-xl py-3 text-base transition"
+              style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}>
+              Checkout ✓
+            </button>
           </div>
+
+          {/* Quick cash */}
           <div className={`${t.surface} border ${t.border} rounded-2xl p-4`}>
             <p className={`text-xs ${t.textMuted} uppercase tracking-widest mb-3`}>Quick Cash</p>
             <div className="grid grid-cols-3 gap-2">
-              {[20,50,100,200,500,1000].map((a) => (
+              {[20, 50, 100, 200, 500, 1000].map((a) => (
                 <button key={a} onClick={() => setCash(a)} className={`${t.btnSec} text-sm py-2 rounded-xl transition`}>₱{a}</button>
               ))}
             </div>
@@ -339,126 +584,135 @@ function PosTab({ items, addToast, t }) {
   );
 }
 
+// ── INVENTORY TAB ─────────────────────────────────────────────────────────────
 function InventoryTab({ items, setItems, addToast, t }) {
-  const [form, setForm]           = useState({name:"",price:"",barcode:"",category:""});
+  const [form, setForm] = useState({ name: "", price: "", barcode: "", category: "" });
   const [editingId, setEditingId] = useState(null);
   const [invSearch, setInvSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [error, setError]         = useState("");
-  const [saving, setSaving]       = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const filtered = invSearch.trim()
     ? items.filter((i) =>
-        i.name.toLowerCase().includes(invSearch.toLowerCase()) ||
-        (i.barcode||"").toLowerCase().includes(invSearch.toLowerCase()) ||
-        (i.category||"").toLowerCase().includes(invSearch.toLowerCase()))
+      i.name.toLowerCase().includes(invSearch.toLowerCase()) ||
+      (i.barcode || "").toLowerCase().includes(invSearch.toLowerCase()) ||
+      (i.category || "").toLowerCase().includes(invSearch.toLowerCase()))
     : [...items];
 
   const saveItem = async () => {
-    const {name,price,barcode,category} = form;
+    const { name, price, barcode, category } = form;
     if (!name.trim()) { setError("Item name is required."); return; }
-    if (isNaN(parseFloat(price))||parseFloat(price)<0) { setError("Enter a valid price."); return; }
+    if (isNaN(parseFloat(price)) || parseFloat(price) < 0) { setError("Enter a valid price."); return; }
     setError(""); setSaving(true);
     try {
       if (editingId) {
-        const payload = {name:name.trim(),price:parseFloat(price),barcode:barcode.trim()||null,category:category.trim()||null};
-        const {error:sbErr} = await supabase.from("items").update(payload).eq("id",editingId);
+        const payload = { name: name.trim(), price: parseFloat(price), barcode: barcode.trim() || null, category: category.trim() || null };
+        const { error: sbErr } = await supabase.from("items").update(payload).eq("id", editingId);
         if (sbErr) throw sbErr;
-        setItems((prev) => prev.map((i) => i.id===editingId ? {...i,...payload} : i));
+        setItems((prev) => prev.map((i) => i.id === editingId ? { ...i, ...payload } : i));
         addToast("Item updated!", "success"); cancelEdit();
       } else {
-        if (items.find((i) => i.name.toLowerCase()===name.trim().toLowerCase())) { setError("Item name already exists."); setSaving(false); return; }
-        const newItem = {id:uid(),name:name.trim(),price:parseFloat(price),barcode:barcode.trim()||null,category:category.trim()||null};
-        const {error:sbErr} = await supabase.from("items").insert([newItem]);
+        if (items.find((i) => i.name.toLowerCase() === name.trim().toLowerCase())) { setError("Item name already exists."); setSaving(false); return; }
+        const newItem = { id: uid(), name: name.trim(), price: parseFloat(price), barcode: barcode.trim() || null, category: category.trim() || null };
+        const { error: sbErr } = await supabase.from("items").insert([newItem]);
         if (sbErr) throw sbErr;
-        setItems((prev) => [...prev,newItem]);
+        setItems((prev) => [...prev, newItem]);
         addToast("Item added!", "success");
-        setForm({name:"",price:"",barcode:"",category:""});
+        setForm({ name: "", price: "", barcode: "", category: "" });
       }
-    } catch(e) { addToast("Database error: "+(e.message||"unknown"), "error"); }
+    } catch (e) { addToast("Database error: " + (e.message || "unknown"), "error"); }
     finally { setSaving(false); }
   };
 
   const editItem = (id) => {
-    const item = items.find((i) => i.id===id); if (!item) return;
-    setEditingId(id); setForm({name:item.name,price:String(item.price),barcode:item.barcode||"",category:item.category||""});
-    window.scrollTo({top:0,behavior:"smooth"});
+    const item = items.find((i) => i.id === id); if (!item) return;
+    setEditingId(id); setForm({ name: item.name, price: String(item.price), barcode: item.barcode || "", category: item.category || "" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const deleteItem = async (id) => {
     if (!window.confirm("Delete this item?")) return;
     try {
-      const {error:sbErr} = await supabase.from("items").delete().eq("id",id);
+      const { error: sbErr } = await supabase.from("items").delete().eq("id", id);
       if (sbErr) throw sbErr;
-      setItems((prev) => prev.filter((i) => i.id!==id)); addToast("Item deleted.", "info");
-    } catch(e) { addToast("Delete failed: "+(e.message||"unknown"), "error"); }
+      setItems((prev) => prev.filter((i) => i.id !== id)); addToast("Item deleted.", "info");
+    } catch (e) { addToast("Delete failed: " + (e.message || "unknown"), "error"); }
   };
 
-  const cancelEdit = () => { setEditingId(null); setForm({name:"",price:"",barcode:"",category:""}); setError(""); };
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-[#c96442] transition placeholder:opacity-50`;
+  const cancelEdit = () => { setEditingId(null); setForm({ name: "", price: "", barcode: "", category: "" }); setError(""); };
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-[#7c3aed] transition placeholder:opacity-40`;
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className={`${t.surface} border ${t.border} rounded-2xl p-5 mb-4`}>
-        <p className={`text-xs ${t.textMuted} uppercase tracking-widest mb-4`}>{editingId?"✏️ Edit Item":"➕ Add New Item"}</p>
+        <p className={`text-xs ${t.textMuted} uppercase tracking-widest mb-4`}>{editingId ? "✏️ Edit Item" : "Add Item"}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          {[{label:"Item Name",key:"name",ph:"e.g. Coke 1L",type:"text"},{label:"Price (₱)",key:"price",ph:"0.00",type:"number"}].map(({label,key,ph,type}) => (
+          {[{ label: "Name", key: "name", ph: "e.g. Milo 3-in-1", type: "text" }, { label: "Price (₱)", key: "price", ph: "0.00", type: "number" }].map(({ label, key, ph, type }) => (
             <div key={key}>
               <label className={`text-xs ${t.textMuted} mb-1 block`}>{label}</label>
-              <input type={type} min={type==="number"?"0":undefined} step={type==="number"?"0.01":undefined}
-                className={inputCls} placeholder={ph} value={form[key]} onChange={(e) => setForm((f) => ({...f,[key]:e.target.value}))} />
+              <input type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined}
+                className={inputCls} placeholder={ph} value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
             </div>
           ))}
           <div>
             <label className={`text-xs ${t.textMuted} mb-1 block`}>Barcode (optional)</label>
             <div className="flex gap-2">
-              <input className={`${inputCls} flex-1`} placeholder="Scan or type barcode"
-                value={form.barcode} onChange={(e) => setForm((f) => ({...f,barcode:e.target.value}))} />
+              <input className={`${inputCls} flex-1`} placeholder="Scan or type" value={form.barcode} onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))} />
               <button onClick={() => setScannerOpen((v) => !v)}
-                className={`px-3 rounded-xl border transition text-base ${scannerOpen?"bg-[#c96442] text-white border-[#c96442]":`${t.btnSec} ${t.border} border`}`}>📷</button>
+                className={`px-3 rounded-xl border transition text-base ${scannerOpen ? "bg-[#7c3aed] text-white border-[#7c3aed]" : `${t.btnSec} ${t.border} border`}`}>📷</button>
             </div>
           </div>
           <div>
             <label className={`text-xs ${t.textMuted} mb-1 block`}>Category (optional)</label>
-            <input className={inputCls} placeholder="e.g. Beverages" value={form.category} onChange={(e) => setForm((f) => ({...f,category:e.target.value}))} />
+            <input className={inputCls} placeholder="e.g. Beverages" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
           </div>
         </div>
-        {scannerOpen && <BarcodeScanner onDetect={(code) => { setScannerOpen(false); setForm((f) => ({...f,barcode:code})); addToast("Scanned: "+code,"success"); }} onClose={() => setScannerOpen(false)} />}
+        {scannerOpen && (
+          <BarcodeScanner
+            onDetect={(code) => { setScannerOpen(false); setForm((f) => ({ ...f, barcode: code })); addToast("Scanned: " + code, "success"); }}
+            onClose={() => setScannerOpen(false)}
+          />
+        )}
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
         <div className="flex gap-2 mt-2">
           <button onClick={saveItem} disabled={saving}
-            className="bg-[#c96442] hover:bg-[#b85a3b] disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl transition flex items-center gap-2">
-            {saving?<span className="animate-spin">⏳</span>:"💾"}{saving?"Saving…":"Save Item"}
+            className="disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl transition text-sm"
+            style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}>
+            {saving ? "Saving…" : editingId ? "Update" : "Save Item"}
           </button>
-          <button onClick={cancelEdit} className={`${t.btnSec} px-4 py-2.5 rounded-xl transition`}>Cancel</button>
+          {editingId && <button onClick={cancelEdit} className={`${t.btnSec} px-4 py-2.5 rounded-xl transition text-sm`}>Cancel</button>}
         </div>
       </div>
 
-      <div className={`${t.surface} border ${t.border} rounded-2xl px-4 py-3 mb-4 flex items-center gap-3`}>
-        <span className={`${t.textFaint} text-base select-none`}>🔍</span>
-        <input className={`flex-1 bg-transparent ${t.text} text-sm outline-none placeholder:opacity-50`}
-          placeholder="Search by name, barcode, or category…" value={invSearch} onChange={(e) => setInvSearch(e.target.value)} />
-        {invSearch && <button onClick={() => setInvSearch("")} className={`${t.textMuted} text-sm transition`}>✕</button>}
-        <span className={`text-xs ${t.textMuted} font-mono whitespace-nowrap`}>{filtered.length}/{items.length}</span>
+      <div className={`${t.surface} border ${t.border} rounded-2xl px-4 py-2.5 mb-3 flex items-center gap-3`}>
+        <span className={`${t.textFaint} text-sm select-none`}>🔍</span>
+        <input className={`flex-1 bg-transparent ${t.text} text-sm outline-none placeholder:opacity-40`}
+          placeholder="Search items…" value={invSearch} onChange={(e) => setInvSearch(e.target.value)} />
+        {invSearch && <button onClick={() => setInvSearch("")} className={`${t.textMuted} text-sm`}>✕</button>}
+        <span className={`text-xs ${t.textMuted} font-mono`}>{filtered.length}/{items.length}</span>
       </div>
 
       <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden`}>
-        <div className={`grid grid-cols-12 text-xs ${t.textMuted} uppercase tracking-widest px-4 py-3 border-b ${t.border} ${t.tblHead}`}>
-          <div className="col-span-4">Name</div><div className="col-span-2">Price</div>
-          <div className="col-span-3">Barcode</div><div className="col-span-2">Category</div><div className="col-span-1" />
+        <div className={`grid grid-cols-12 text-xs ${t.textMuted} uppercase tracking-widest px-4 py-2.5 border-b ${t.border} ${t.tblHead}`}>
+          <div className="col-span-4">Name</div>
+          <div className="col-span-2">Price</div>
+          <div className="col-span-3">Barcode</div>
+          <div className="col-span-2">Category</div>
+          <div className="col-span-1" />
         </div>
         <div className={`max-h-96 overflow-y-auto ${t.divide} divide-y`}>
           {!filtered.length ? (
-            <p className={`text-center ${t.textFaint} text-sm py-10`}>{invSearch?`No items match "${invSearch}"`:"No items yet. Add your first item above."}</p>
+            <p className={`text-center ${t.textFaint} text-sm py-10`}>{invSearch ? `No results for "${invSearch}"` : "No items yet."}</p>
           ) : filtered.map((item) => (
             <div key={item.id} className={`grid grid-cols-12 items-center px-4 py-3 ${t.rowHov} transition text-sm`}>
               <div className={`col-span-4 font-medium ${t.text} truncate`}>{item.name}</div>
-              <div className="col-span-2 font-mono text-[#c96442]">{fmt(item.price)}</div>
-              <div className={`col-span-3 font-mono ${t.textMuted} text-xs truncate`}>{item.barcode||"—"}</div>
-              <div className={`col-span-2 ${t.textMuted} text-xs truncate`}>{item.category||"—"}</div>
+              <div className="col-span-2 font-mono text-[#7c3aed] text-xs">{fmt(item.price)}</div>
+              <div className={`col-span-3 font-mono ${t.textMuted} text-xs truncate`}>{item.barcode || "—"}</div>
+              <div className={`col-span-2 ${t.textMuted} text-xs truncate`}>{item.category || "—"}</div>
               <div className="col-span-1 flex gap-1 justify-end">
-                <button onClick={() => editItem(item.id)} className="text-[#c96442] hover:opacity-70 text-base px-1 transition">✏️</button>
-                <button onClick={() => deleteItem(item.id)} className="text-red-400 hover:text-red-500 text-base px-1 transition">🗑️</button>
+                <button onClick={() => editItem(item.id)} className={`${t.textMuted} hover:text-[#7c3aed] text-sm px-1 transition`}>✏️</button>
+                <button onClick={() => deleteItem(item.id)} className="text-red-400 hover:text-red-500 text-sm px-1 transition">🗑️</button>
               </div>
             </div>
           ))}
@@ -468,43 +722,40 @@ function InventoryTab({ items, setItems, addToast, t }) {
   );
 }
 
+// ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page, setPage]     = useState("home");
-  const [tab, setTab]       = useState("pos");
-  const [dark, setDark]     = useState(() => {
+  const [page, setPage] = useState("home");
+  const [tab, setTab] = useState("pos");
+  const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem("inah_theme");
-    if (saved) return saved==="dark";
+    if (saved) return saved === "dark";
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
-  const [items, setItems]   = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
   const t = dark ? T.dark : T.light;
 
-  const addToast = useCallback((msg, type="info") => {
+  const addToast = useCallback((msg, type = "info") => {
     const id = uid();
-    setToasts((prev) => [...prev,{id,msg,type}]);
-    setTimeout(() => setToasts((prev) => prev.filter((x) => x.id!==id)), 2800);
+    setToasts((prev) => [...prev, { id, msg, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 2800);
   }, []);
 
   useEffect(() => {
-    supabase.from("items").select("*").order("created_at",{ascending:true})
-      .then(({data,error}) => {
-        if (error) { addToast("Could not load items.", "error"); }
-        else { setItems(data||[]); }
+    supabase.from("items").select("*").order("created_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) addToast("Could not load items.", "error");
+        else setItems(data || []);
         setLoading(false);
       });
   }, []);
 
-  useEffect(() => { localStorage.setItem("inah_theme", dark?"dark":"light"); }, [dark]);
+  useEffect(() => { localStorage.setItem("inah_theme", dark ? "dark" : "light"); }, [dark]);
 
-  if (page==="home") return (
+  if (page === "home") return (
     <>
-      <button onClick={() => setDark((d) => !d)}
-        className={`fixed top-4 right-4 z-50 w-10 h-10 rounded-xl border ${t.border} ${t.card} ${t.text} flex items-center justify-center text-lg transition shadow-sm`}>
-        {dark?"☀️":"🌙"}
-      </button>
-      <HomePage onEnter={() => setPage("app")} t={t} />
+      <HomePage onEnter={() => setPage("app")} t={t} dark={dark} setDark={setDark} />
       <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
     </>
   );
@@ -512,36 +763,43 @@ export default function App() {
   return (
     <div className={`min-h-screen ${t.bg} ${t.text} transition-colors duration-300`}>
       <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
-      <div className={`flex items-center justify-between px-6 py-4 border-b ${t.border} ${t.surface}`}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setPage("home")} className={`${t.textMuted} hover:text-[#c96442] text-lg transition`}>🏪</button>
+
+      {/* Header */}
+      <div className={`flex items-center justify-between px-5 py-3 border-b ${t.border} ${t.surface} sticky top-0 z-40`}>
+        <button onClick={() => setPage("home")} className="flex items-center gap-2.5 group">
+          <span className="text-xl">🏪</span>
           <div>
-            <h1 className="text-base font-bold text-[#c96442] tracking-wide">INAH STORE</h1>
-            <p className={`text-xs ${t.textMuted} font-mono`}>Point of Sale System</p>
+            <p className="text-sm font-bold text-[#7c3aed] leading-none">INAH STORE</p>
+            <p className={`text-xs ${t.textFaint} leading-none mt-0.5 font-mono`}>POS System</p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {[["pos","🛒 Cashier"],["inventory","📦 Inventory"]].map(([id,label]) => (
+        </button>
+
+        <div className="flex items-center gap-1.5">
+          {[["pos", "🛒 Cashier"], ["inventory", "📦 Inventory"]].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
-              className={`px-4 py-2 rounded-xl text-sm transition font-medium ${tab===id?"bg-[#c96442] text-white":`${t.textMuted} ${t.hover} rounded-xl`}`}>
+              className={`px-3.5 py-1.5 rounded-xl text-sm transition font-medium ${tab === id
+                ? "text-white"
+                : `${t.textMuted} ${t.hover} rounded-xl`}`}
+              style={tab === id ? { background: "linear-gradient(135deg, #a855f7, #7c3aed)" } : {}}>
               {label}
             </button>
           ))}
           <button onClick={() => setDark((d) => !d)}
-            className={`ml-1 w-9 h-9 rounded-xl border ${t.border} ${t.card} ${t.text} flex items-center justify-center text-base transition`}>
-            {dark?"☀️":"🌙"}
+            className={`ml-1 w-8 h-8 rounded-xl border ${t.border} ${t.card} flex items-center justify-center text-sm transition`}>
+            {dark ? "☀️" : "🌙"}
           </button>
         </div>
       </div>
+
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
           <span className="text-3xl animate-spin">⏳</span>
-          <p className={`text-sm ${t.textMuted}`}>Loading items from database…</p>
+          <p className={`text-sm ${t.textMuted}`}>Loading…</p>
         </div>
       ) : (
         <>
-          {tab==="pos"       && <PosTab items={items} addToast={addToast} t={t} />}
-          {tab==="inventory" && <InventoryTab items={items} setItems={setItems} addToast={addToast} t={t} />}
+          {tab === "pos" && <PosTab items={items} addToast={addToast} t={t} />}
+          {tab === "inventory" && <InventoryTab items={items} setItems={setItems} addToast={addToast} t={t} />}
         </>
       )}
       <Toast toasts={toasts} />
