@@ -1,4 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// ─── Supabase ───
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 // ─── Helpers ───
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -18,7 +25,7 @@ const T = {
     textMuted: "text-[#888]",
     textFaint: "text-[#555]",
     hover:     "hover:bg-[#333]",
-    accent:    "text-[#c96442]",        // warm terracotta — Claude-ish
+    accent:    "text-[#c96442]",
     accentBg:  "bg-[#c96442]",
     accentHov: "hover:bg-[#b85a3b]",
     btnSec:    "bg-[#333] hover:bg-[#3d3d3d] text-[#ececec]",
@@ -51,7 +58,7 @@ function Toast({ toasts }) {
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id}
-          className={`px-4 py-3 rounded-2xl text-sm font-medium shadow-xl pointer-events-auto
+          className={`px-4 py-3 rounded-2xl text-sm font-medium shadow-xl pointer-events-auto transition-all
             ${t.type === "success" ? "bg-emerald-600 text-white" : ""}
             ${t.type === "error"   ? "bg-red-500 text-white"     : ""}
             ${t.type === "info"    ? "bg-[#c96442] text-white"   : ""}`}>
@@ -62,14 +69,14 @@ function Toast({ toasts }) {
   );
 }
 
-// ─── Barcode Scanner (getUserMedia + ZXing canvas polling — most reliable) ───
-function BarcodeScanner({ onDetect, onClose, t }) {
+// ─── Barcode Scanner ───
+function BarcodeScanner({ onDetect, onClose }) {
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const rafRef    = useRef(null);
   const readerRef = useRef(null);
-  const [status, setStatus] = useState("starting"); // starting | active | error
+  const [status, setStatus] = useState("starting");
 
   useEffect(() => {
     let mounted = true;
@@ -93,8 +100,8 @@ function BarcodeScanner({ onDetect, onClose, t }) {
         const reader = new ZXing.BrowserMultiFormatReader();
         readerRef.current = reader;
 
-        const canvas  = canvasRef.current;
-        const ctx     = canvas.getContext("2d");
+        const canvas = canvasRef.current;
+        const ctx    = canvas.getContext("2d");
 
         function tick() {
           if (!mounted || !videoRef.current) return;
@@ -108,17 +115,13 @@ function BarcodeScanner({ onDetect, onClose, t }) {
               const lum = new ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
               const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
               const result = reader.decode(bmp);
-              if (result && mounted) {
-                cleanup();
-                onDetect(result.getText());
-                return;
-              }
+              if (result && mounted) { cleanup(); onDetect(result.getText()); return; }
             } catch (_) {}
           }
           rafRef.current = requestAnimationFrame(tick);
         }
         rafRef.current = requestAnimationFrame(tick);
-      } catch (e) {
+      } catch {
         if (mounted) setStatus("error");
       }
     }
@@ -132,19 +135,16 @@ function BarcodeScanner({ onDetect, onClose, t }) {
 
     start();
     return cleanup;
-  }, []); // eslint-disable-line
+  }, []);
 
   return (
     <div className="mt-3 rounded-2xl overflow-hidden border border-[#c96442]/40">
       <div className="relative bg-black" style={{ minHeight: 180 }}>
         <video ref={videoRef} className="w-full block" muted playsInline style={{ maxHeight: 260 }} />
         <canvas ref={canvasRef} className="hidden" />
-
-        {/* scan frame */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="relative w-52 h-28"
             style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)", borderRadius: 8 }}>
-            {/* corner brackets */}
             {[["top-0 left-0","border-t-2 border-l-2"],["top-0 right-0","border-t-2 border-r-2"],
               ["bottom-0 left-0","border-b-2 border-l-2"],["bottom-0 right-0","border-b-2 border-r-2"]
             ].map(([pos, brd], i) => (
@@ -156,7 +156,6 @@ function BarcodeScanner({ onDetect, onClose, t }) {
             )}
           </div>
         </div>
-
         {status === "starting" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/70">
             <span className="text-white text-sm animate-pulse">Starting camera…</span>
@@ -164,7 +163,7 @@ function BarcodeScanner({ onDetect, onClose, t }) {
         )}
         {status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-2 p-4">
-            <span className="text-red-400 text-sm text-center">Camera unavailable. Allow camera access and try again.</span>
+            <span className="text-red-400 text-sm text-center">Camera unavailable. Allow access and try again.</span>
           </div>
         )}
       </div>
@@ -176,23 +175,19 @@ function BarcodeScanner({ onDetect, onClose, t }) {
   );
 }
 
-// ─── Home / Welcome Page ───
-function HomePage({ onEnter, t, dark }) {
+// ─── Home Page ───
+function HomePage({ onEnter, t }) {
   const features = [
-    { icon: "🛒", title: "Point of Sale", desc: "Fast checkout with barcode scanning and cash change calculator." },
-    { icon: "📦", title: "Inventory", desc: "Add, edit, and search products with categories and barcodes." },
-    { icon: "📷", title: "Barcode Scanner", desc: "Scan barcodes with your camera to find or add items instantly." },
+    { icon: "🛒", title: "Point of Sale",    desc: "Fast checkout with barcode scanning and cash change calculator." },
+    { icon: "📦", title: "Inventory",        desc: "Add, edit, and search products with categories and barcodes." },
+    { icon: "☁️", title: "Cloud Sync",       desc: "All items saved to Supabase — synced across devices in real time." },
   ];
 
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center px-6 py-16 ${t.bg} transition-colors duration-300`}>
-      {/* subtle grid bg */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03]"
         style={{ backgroundImage: "linear-gradient(#888 1px,transparent 1px),linear-gradient(90deg,#888 1px,transparent 1px)", backgroundSize: "40px 40px" }} />
-
       <div className="relative z-10 flex flex-col items-center max-w-lg w-full text-center gap-8">
-
-        {/* Logo mark */}
         <div className="flex flex-col items-center gap-3">
           <div className={`w-20 h-20 rounded-3xl ${t.card} ${t.border} border flex items-center justify-center shadow-xl`}>
             <span className="text-4xl">🏪</span>
@@ -204,8 +199,6 @@ function HomePage({ onEnter, t, dark }) {
             <p className={`text-sm mt-1 ${t.textMuted}`}>Point of Sale System</p>
           </div>
         </div>
-
-        {/* Feature cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
           {features.map((f) => (
             <div key={f.title}
@@ -216,28 +209,21 @@ function HomePage({ onEnter, t, dark }) {
             </div>
           ))}
         </div>
-
-        {/* CTA */}
-        <button
-          onClick={onEnter}
+        <button onClick={onEnter}
           className="bg-[#c96442] hover:bg-[#b85a3b] active:scale-95 text-white font-semibold px-10 py-3.5 rounded-2xl text-base transition-all shadow-lg shadow-[#c96442]/30">
           Open POS System →
         </button>
-
         <p className={`text-xs ${t.textFaint}`}>Tap to start your session</p>
       </div>
-
-      {/* scanline keyframe injected once */}
-      <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
     </div>
   );
 }
 
 // ─── POS Tab ───
 function PosTab({ items, addToast, t }) {
-  const [cart, setCart]         = useState([]);
-  const [search, setSearch]     = useState("");
-  const [cash, setCashVal]      = useState("");
+  const [cart, setCart]           = useState([]);
+  const [search, setSearch]       = useState("");
+  const [cash, setCashVal]        = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const total   = cart.reduce((s, c) => s + c.price * c.qty, 0);
@@ -276,16 +262,13 @@ function PosTab({ items, addToast, t }) {
     setCart([]); setCashVal("");
   };
 
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-[#c96442] placeholder:${t.textFaint} transition`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-[#c96442] placeholder:opacity-50 transition`;
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
         {/* Left */}
         <div className="lg:col-span-3 flex flex-col gap-4">
-
-          {/* Search */}
           <div className={`${t.surface} border ${t.border} rounded-2xl p-4`}>
             <p className={`text-xs ${t.textMuted} uppercase tracking-widest mb-3`}>Scan / Search Item</p>
             <div className="flex gap-2">
@@ -311,13 +294,12 @@ function PosTab({ items, addToast, t }) {
               </button>
             </div>
             {scannerOpen && (
-              <BarcodeScanner t={t}
+              <BarcodeScanner
                 onDetect={(code) => { setScannerOpen(false); posSearch(code); }}
                 onClose={() => setScannerOpen(false)} />
             )}
           </div>
 
-          {/* Cart */}
           <div className={`${t.surface} border ${t.border} rounded-2xl p-4 flex-1`}>
             <div className="flex items-center justify-between mb-3">
               <p className={`text-xs ${t.textMuted} uppercase tracking-widest`}>Cart</p>
@@ -403,11 +385,12 @@ function PosTab({ items, addToast, t }) {
 
 // ─── Inventory Tab ───
 function InventoryTab({ items, setItems, addToast, t }) {
-  const [form, setForm]         = useState({ name: "", price: "", barcode: "", category: "" });
+  const [form, setForm]           = useState({ name: "", price: "", barcode: "", category: "" });
   const [editingId, setEditingId] = useState(null);
   const [invSearch, setInvSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [error, setError]       = useState("");
+  const [error, setError]         = useState("");
+  const [saving, setSaving]       = useState(false);
 
   const filtered = invSearch.trim()
     ? items.filter((i) =>
@@ -416,24 +399,58 @@ function InventoryTab({ items, setItems, addToast, t }) {
         (i.category || "").toLowerCase().includes(invSearch.toLowerCase()))
     : [...items];
 
-  const saveItem = () => {
+  const saveItem = async () => {
     const { name, price, barcode, category } = form;
     if (!name.trim()) { setError("Item name is required."); return; }
     if (isNaN(parseFloat(price)) || parseFloat(price) < 0) { setError("Enter a valid price."); return; }
     setError("");
-    if (editingId) {
-      setItems((prev) => prev.map((i) => i.id === editingId
-        ? { ...i, name: name.trim(), price: parseFloat(price), barcode: barcode.trim(), category: category.trim() }
-        : i));
-      addToast("Item updated!", "success");
-      cancelEdit();
-    } else {
-      if (items.find((i) => i.name.toLowerCase() === name.trim().toLowerCase())) {
-        setError("Item name already exists."); return;
+    setSaving(true);
+
+    try {
+      if (editingId) {
+        // ── UPDATE ──
+        const payload = {
+          name:     name.trim(),
+          price:    parseFloat(price),
+          barcode:  barcode.trim() || null,
+          category: category.trim() || null,
+        };
+        const { error: sbErr } = await supabase
+          .from("items")
+          .update(payload)
+          .eq("id", editingId);
+
+        if (sbErr) throw sbErr;
+
+        setItems((prev) =>
+          prev.map((i) => i.id === editingId ? { ...i, ...payload } : i)
+        );
+        addToast("Item updated!", "success");
+        cancelEdit();
+      } else {
+        // ── INSERT ──
+        if (items.find((i) => i.name.toLowerCase() === name.trim().toLowerCase())) {
+          setError("Item name already exists."); setSaving(false); return;
+        }
+        const newItem = {
+          id:       uid(),
+          name:     name.trim(),
+          price:    parseFloat(price),
+          barcode:  barcode.trim() || null,
+          category: category.trim() || null,
+        };
+        const { error: sbErr } = await supabase.from("items").insert([newItem]);
+        if (sbErr) throw sbErr;
+
+        setItems((prev) => [...prev, newItem]);
+        addToast("Item added!", "success");
+        setForm({ name: "", price: "", barcode: "", category: "" });
       }
-      setItems((prev) => [...prev, { id: uid(), name: name.trim(), price: parseFloat(price), barcode: barcode.trim(), category: category.trim() }]);
-      addToast("Item added!", "success");
-      setForm({ name: "", price: "", barcode: "", category: "" });
+    } catch (e) {
+      console.error(e);
+      addToast("Database error: " + (e.message || "unknown"), "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -445,10 +462,16 @@ function InventoryTab({ items, setItems, addToast, t }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const deleteItem = (id) => {
+  const deleteItem = async (id) => {
     if (!window.confirm("Delete this item?")) return;
-    setItems((prev) => prev.filter((i) => i.id !== id));
-    addToast("Item deleted.", "info");
+    try {
+      const { error: sbErr } = await supabase.from("items").delete().eq("id", id);
+      if (sbErr) throw sbErr;
+      setItems((prev) => prev.filter((i) => i.id !== id));
+      addToast("Item deleted.", "info");
+    } catch (e) {
+      addToast("Delete failed: " + (e.message || "unknown"), "error");
+    }
   };
 
   const cancelEdit = () => {
@@ -461,7 +484,6 @@ function InventoryTab({ items, setItems, addToast, t }) {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-
       {/* Form */}
       <div className={`${t.surface} border ${t.border} rounded-2xl p-5 mb-4`}>
         <p className={`text-xs ${t.textMuted} uppercase tracking-widest mb-4`}>
@@ -469,12 +491,12 @@ function InventoryTab({ items, setItems, addToast, t }) {
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           {[
-            { label: "Item Name",   key: "name",     ph: "e.g. Coke 1L",   type: "text"   },
-            { label: "Price (₱)",   key: "price",    ph: "0.00",           type: "number" },
+            { label: "Item Name",  key: "name",  ph: "e.g. Coke 1L", type: "text"   },
+            { label: "Price (₱)",  key: "price", ph: "0.00",         type: "number" },
           ].map(({ label, key, ph, type }) => (
             <div key={key}>
               <label className={`text-xs ${t.textMuted} mb-1 block`}>{label}</label>
-              <input type={type} min={type==="number"?"0":undefined} step={type==="number"?"0.01":undefined}
+              <input type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined}
                 className={inputCls} placeholder={ph}
                 value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} />
             </div>
@@ -499,16 +521,17 @@ function InventoryTab({ items, setItems, addToast, t }) {
         </div>
 
         {scannerOpen && (
-          <BarcodeScanner t={t}
+          <BarcodeScanner
             onDetect={(code) => { setScannerOpen(false); setForm((f) => ({ ...f, barcode: code })); addToast("Scanned: " + code, "success"); }}
             onClose={() => setScannerOpen(false)} />
         )}
 
         {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
         <div className="flex gap-2 mt-2">
-          <button onClick={saveItem}
-            className="bg-[#c96442] hover:bg-[#b85a3b] text-white font-semibold px-6 py-2.5 rounded-xl transition">
-            💾 Save Item
+          <button onClick={saveItem} disabled={saving}
+            className="bg-[#c96442] hover:bg-[#b85a3b] disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl transition flex items-center gap-2">
+            {saving ? <span className="animate-spin text-base">⏳</span> : "💾"}
+            {saving ? "Saving…" : "Save Item"}
           </button>
           <button onClick={cancelEdit}
             className={`${t.btnSec} px-4 py-2.5 rounded-xl transition`}>Cancel</button>
@@ -519,13 +542,13 @@ function InventoryTab({ items, setItems, addToast, t }) {
       <div className={`${t.surface} border ${t.border} rounded-2xl px-4 py-3 mb-4 flex items-center gap-3`}>
         <span className={`${t.textFaint} text-base select-none`}>🔍</span>
         <input
-          className={`flex-1 bg-transparent ${t.text} text-sm outline-none placeholder:${t.textFaint}`}
+          className={`flex-1 bg-transparent ${t.text} text-sm outline-none placeholder:opacity-50`}
           placeholder="Search by name, barcode, or category…"
           value={invSearch}
           onChange={(e) => setInvSearch(e.target.value)} />
         {invSearch && (
           <button onClick={() => setInvSearch("")}
-            className={`${t.textMuted} hover:${t.text} text-sm transition`}>✕</button>
+            className={`${t.textMuted} text-sm transition`}>✕</button>
         )}
         <span className={`text-xs ${t.textMuted} font-mono whitespace-nowrap`}>
           {filtered.length}/{items.length}
@@ -567,24 +590,40 @@ function InventoryTab({ items, setItems, addToast, t }) {
 }
 
 // ─── App Root ───
-const DB_KEY = "inah_pos_items";
-
 export default function App() {
-  const [page, setPage]   = useState("home");  // home | app
+  const [page, setPage]   = useState("home");
   const [tab, setTab]     = useState("pos");
   const [dark, setDark]   = useState(() => {
     const saved = localStorage.getItem("inah_theme");
     if (saved) return saved === "dark";
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
-  const [items, setItems] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(DB_KEY) || "[]"); } catch { return []; }
-  });
+  const [items, setItems]   = useState([]);
+  const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
 
   const t = dark ? T.dark : T.light;
 
-  useEffect(() => { localStorage.setItem(DB_KEY, JSON.stringify(items)); }, [items]);
+  // ── Load items from Supabase on mount ──
+  useEffect(() => {
+    async function fetchItems() {
+      try {
+        const { data, error } = await supabase
+          .from("items")
+          .select("*")
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        setItems(data || []);
+      } catch (e) {
+        console.error("Failed to load items:", e);
+        addToast("Could not load items from database.", "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchItems();
+  }, []);
+
   useEffect(() => { localStorage.setItem("inah_theme", dark ? "dark" : "light"); }, [dark]);
 
   const addToast = useCallback((msg, type = "info") => {
@@ -596,20 +635,19 @@ export default function App() {
   if (page === "home") {
     return (
       <>
-        {/* dark mode toggle on home */}
         <button
           onClick={() => setDark((d) => !d)}
           className={`fixed top-4 right-4 z-50 w-10 h-10 rounded-xl border ${t.border} ${t.card} ${t.text} flex items-center justify-center text-lg transition shadow-sm`}>
           {dark ? "☀️" : "🌙"}
         </button>
         <HomePage onEnter={() => setPage("app")} t={t} dark={dark} />
+        <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
       </>
     );
   }
 
   return (
     <div className={`min-h-screen ${t.bg} ${t.text} transition-colors duration-300`}>
-      {/* scanline keyframe */}
       <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
 
       {/* Header */}
@@ -622,20 +660,14 @@ export default function App() {
             <p className={`text-xs ${t.textMuted} font-mono`}>Point of Sale System</p>
           </div>
         </div>
-
         <div className="flex items-center gap-2">
-          {/* Tabs */}
           {[["pos", "🛒 Cashier"], ["inventory", "📦 Inventory"]].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`px-4 py-2 rounded-xl text-sm transition font-medium
-                ${tab === id
-                  ? "bg-[#c96442] text-white"
-                  : `${t.textMuted} ${t.hover} rounded-xl`}`}>
+                ${tab === id ? "bg-[#c96442] text-white" : `${t.textMuted} ${t.hover} rounded-xl`}`}>
               {label}
             </button>
           ))}
-
-          {/* Dark mode toggle */}
           <button onClick={() => setDark((d) => !d)}
             className={`ml-1 w-9 h-9 rounded-xl border ${t.border} ${t.card} ${t.text} flex items-center justify-center text-base transition`}>
             {dark ? "☀️" : "🌙"}
@@ -643,8 +675,18 @@ export default function App() {
         </div>
       </div>
 
-      {tab === "pos"       && <PosTab items={items} addToast={addToast} t={t} />}
-      {tab === "inventory" && <InventoryTab items={items} setItems={setItems} addToast={addToast} t={t} />}
+      {/* Loading state */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <span className="text-3xl animate-spin">⏳</span>
+          <p className={`text-sm ${t.textMuted}`}>Loading items from database…</p>
+        </div>
+      ) : (
+        <>
+          {tab === "pos"       && <PosTab items={items} addToast={addToast} t={t} />}
+          {tab === "inventory" && <InventoryTab items={items} setItems={setItems} addToast={addToast} t={t} />}
+        </>
+      )}
 
       <Toast toasts={toasts} />
     </div>
