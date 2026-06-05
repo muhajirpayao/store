@@ -3,18 +3,18 @@ import { createClient } from "@supabase/supabase-js";
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from "@zxing/library";
 
 // When creating the reader:
-const hints = new Map();
-hints.set(DecodeHintType.TRY_HARDER, true);
-hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-  BarcodeFormat.EAN_13,
-  BarcodeFormat.EAN_8,
-  BarcodeFormat.CODE_128,
-  BarcodeFormat.CODE_39,
-  BarcodeFormat.UPC_A,
-  BarcodeFormat.UPC_E,
-  BarcodeFormat.QR_CODE,
-]);
-const reader = new BrowserMultiFormatReader(hints);
+// const hints = new Map();
+// hints.set(DecodeHintType.TRY_HARDER, true);
+// hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+//   BarcodeFormat.EAN_13,
+//   BarcodeFormat.EAN_8,
+//   BarcodeFormat.CODE_128,
+//   BarcodeFormat.CODE_39,
+//   BarcodeFormat.UPC_A,
+//   BarcodeFormat.UPC_E,
+//   BarcodeFormat.QR_CODE,
+// ]);
+// const reader = new BrowserMultiFormatReader(hints);
 
 let supabase;
 if (!globalThis.__supabase) {
@@ -178,14 +178,14 @@ function useVoiceSearch(items, onResult, onError) {
 // ── BARCODE SCANNER ───────────────────────────────────────────────────────────
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
   const streamRef = useRef(null);
-  const rafRef = useRef(null);
   const mountedRef = useRef(true);
+  const readerRef = useRef(null);
   const [status, setStatus] = useState("starting");
 
   useEffect(() => {
     mountedRef.current = true;
+
     async function start() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -193,49 +193,59 @@ function BarcodeScanner({ onDetect, onClose }) {
         });
         if (!mountedRef.current) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
+
         const video = videoRef.current;
         if (!video || !mountedRef.current) return;
         video.srcObject = stream;
         video.setAttribute("playsinline", "true");
         video.muted = true;
-        await new Promise((resolve) => { video.oncanplay = resolve; setTimeout(resolve, 3000); });
+        await video.play();
         if (!mountedRef.current) return;
-        try { await video.play(); } catch (playErr) { if (!mountedRef.current) return; }
-        if (!mountedRef.current) return;
-        if (!mountedRef.current) return;
-setStatus("active");
-const reader = new BrowserMultiFormatReader();
-        const canvas = canvasRef.current;
-async function tick() {
-  if (!mountedRef.current || !videoRef.current || !canvas) return;
-  const v = videoRef.current;
-  if (v.readyState >= v.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-    try {
-      const result = await reader.decodeFromCanvas(canvas);
-      if (result && mountedRef.current) {
-        cleanup();
-        onDetect(result.getText());
-        return;
+
+        setStatus("active");
+
+        const hints = new Map();
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+          BarcodeFormat.EAN_13,
+          BarcodeFormat.EAN_8,
+          BarcodeFormat.CODE_128,
+          BarcodeFormat.CODE_39,
+          BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E,
+          BarcodeFormat.QR_CODE,
+        ]);
+
+        const reader = new BrowserMultiFormatReader(hints);
+        readerRef.current = reader;
+
+        reader.decodeFromStream(stream, video, (result, err) => {
+          if (!mountedRef.current) return;
+          if (result) {
+            cleanup();
+            onDetect(result.getText());
+          }
+          // err is thrown every frame when no barcode found — that's normal, ignore it
+        });
+
+      } catch (err) {
+        if (mountedRef.current) setStatus("error");
       }
-    } catch (_) {}
-  }
-  if (mountedRef.current) {
-    rafRef.current = requestAnimationFrame(tick);
-  }
-}
-        rafRef.current = requestAnimationFrame(tick);
-      } catch (err) { if (mountedRef.current) setStatus("error"); }
     }
+
     function cleanup() {
       mountedRef.current = false;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (streamRef.current) streamRef.current.getTracks().forEach((tr) => tr.stop());
+      if (readerRef.current) {
+        readerRef.current.reset();
+        readerRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((tr) => tr.stop());
+        streamRef.current = null;
+      }
       if (videoRef.current) videoRef.current.srcObject = null;
     }
+
     start();
     return cleanup;
   }, []);
@@ -244,13 +254,14 @@ async function tick() {
     <div className="mt-3 rounded-2xl overflow-hidden border border-white/10 shadow-xl">
       <div className="relative bg-black" style={{ minHeight: 260 }}>
         <video ref={videoRef} className="w-full block" muted playsInline style={{ maxHeight: 340, objectFit: "cover" }} />
-        <canvas ref={canvasRef} className="hidden" />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="relative" style={{ width: "70%", height: 110, boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)", borderRadius: 8 }}>
             {[["top-0 left-0","border-t-2 border-l-2"],["top-0 right-0","border-t-2 border-r-2"],
               ["bottom-0 left-0","border-b-2 border-l-2"],["bottom-0 right-0","border-b-2 border-r-2"]
             ].map(([pos,brd],i) => <span key={i} className={`absolute w-6 h-6 ${pos} ${brd} border-white/70 rounded-sm`} />)}
-            {status === "active" && <div className="absolute inset-x-0 h-0.5 bg-white/50" style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }} />}
+            {status === "active" && (
+              <div className="absolute inset-x-0 h-0.5 bg-white/50" style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }} />
+            )}
           </div>
         </div>
         {status === "starting" && (
