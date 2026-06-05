@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { BrowserMultiFormatReader, RGBLuminanceSource, BinaryBitmap, HybridBinarizer } from "@zxing/library";
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+let supabase;
+if (!globalThis.__supabase) {
+  globalThis.__supabase = createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_ANON_KEY
+  );
+}
+supabase = globalThis.__supabase;  
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const fmt = (n) =>
@@ -183,13 +188,9 @@ function BarcodeScanner({ onDetect, onClose }) {
         if (!mountedRef.current) return;
         try { await video.play(); } catch (playErr) { if (!mountedRef.current) return; }
         if (!mountedRef.current) return;
-        let attempts = 0;
-        while (!window.ZXing && attempts < 50) { await new Promise((r) => setTimeout(r, 200)); attempts++; }
-        if (!window.ZXing || !mountedRef.current) { setStatus("error"); return; }
-        setStatus("active");
-        const hints = new Map();
-        hints.set(window.ZXing.DecodeHintType?.TRY_HARDER, true);
-        const reader = new window.ZXing.BrowserMultiFormatReader(hints);
+        if (!mountedRef.current) return;
+setStatus("active");
+const reader = new BrowserMultiFormatReader();
         const canvas = canvasRef.current;
         function tick() {
           if (!mountedRef.current || !videoRef.current || !canvas) return;
@@ -200,9 +201,9 @@ function BarcodeScanner({ onDetect, onClose }) {
             ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
             try {
               const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const lum = new window.ZXing.RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-              const bmp = new window.ZXing.BinaryBitmap(new window.ZXing.HybridBinarizer(lum));
-              const result = reader.decode(bmp);
+              const lum = new RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
+const bmp = new BinaryBitmap(new HybridBinarizer(lum));
+const result = reader.decode(bmp);
               if (result && mountedRef.current) { cleanup(); onDetect(result.getText()); return; }
             } catch (_) {}
           }

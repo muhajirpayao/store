@@ -14,7 +14,7 @@ export default defineConfig({
         short_name: 'inahstore',
         start_url: '/',
         display: 'standalone',
-        theme_color: '#16a34a',
+        theme_color: '#1d211e',
         icons: [
           {
             src: '/icon-192.png',
