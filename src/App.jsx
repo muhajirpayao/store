@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { BrowserMultiFormatReader, RGBLuminanceSource, BinaryBitmap, HybridBinarizer } from "@zxing/library";
+import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from "@zxing/library";
+
+// When creating the reader:
+const hints = new Map();
+hints.set(DecodeHintType.TRY_HARDER, true);
+hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+  BarcodeFormat.EAN_13,
+  BarcodeFormat.EAN_8,
+  BarcodeFormat.CODE_128,
+  BarcodeFormat.CODE_39,
+  BarcodeFormat.UPC_A,
+  BarcodeFormat.UPC_E,
+  BarcodeFormat.QR_CODE,
+]);
+const reader = new BrowserMultiFormatReader(hints);
 
 let supabase;
 if (!globalThis.__supabase) {
@@ -192,23 +206,27 @@ function BarcodeScanner({ onDetect, onClose }) {
 setStatus("active");
 const reader = new BrowserMultiFormatReader();
         const canvas = canvasRef.current;
-        function tick() {
-          if (!mountedRef.current || !videoRef.current || !canvas) return;
-          const v = videoRef.current;
-          if (v.readyState >= v.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
-            canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-            try {
-              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const lum = new RGBLuminanceSource(imgData.data, canvas.width, canvas.height);
-const bmp = new BinaryBitmap(new HybridBinarizer(lum));
-const result = reader.decode(bmp);
-              if (result && mountedRef.current) { cleanup(); onDetect(result.getText()); return; }
-            } catch (_) {}
-          }
-          rafRef.current = requestAnimationFrame(tick);
-        }
+async function tick() {
+  if (!mountedRef.current || !videoRef.current || !canvas) return;
+  const v = videoRef.current;
+  if (v.readyState >= v.HAVE_ENOUGH_DATA && v.videoWidth > 0) {
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    try {
+      const result = await reader.decodeFromCanvas(canvas);
+      if (result && mountedRef.current) {
+        cleanup();
+        onDetect(result.getText());
+        return;
+      }
+    } catch (_) {}
+  }
+  if (mountedRef.current) {
+    rafRef.current = requestAnimationFrame(tick);
+  }
+}
         rafRef.current = requestAnimationFrame(tick);
       } catch (err) { if (mountedRef.current) setStatus("error"); }
     }
