@@ -55,7 +55,7 @@ const DEFAULT_CATEGORIES = [
   "Produce", "Cigarettes", "Rice & Grains", "Sweets & Candy", "Medicines", "Unknown"
 ];
 
-const DEFAULT_PIN = "1234";
+const DEFAULT_PIN = "9800";
 
 // ── THEME ─────────────────────────────────────────────────────────────────────
 const T = {
@@ -357,8 +357,6 @@ function PinScreen({ onUnlock }) {
             </button>
           ))}
         </div>
-
-        <p className="text-white/20 text-xs text-center">Default PIN: 1234</p>
       </div>
       <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
     </div>
