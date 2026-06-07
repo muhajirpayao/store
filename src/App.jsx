@@ -116,7 +116,7 @@ const T = {
 // ── TOAST ─────────────────────────────────────────────────────────────────────
 function Toast({ toasts }) {
   return (
-    <div className="fixed bottom-24 right-4 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed bottom-6 right-4 flex flex-col gap-2 pointer-events-none z-50">
       {toasts.map((t) => (
         <div key={t.id} className={`px-4 py-3 rounded-xl text-sm font-medium shadow-2xl pointer-events-auto
           ${t.type === "success" ? "bg-[#180d35] text-[#b388ff] border border-[#2e1660]" : ""}
@@ -136,6 +136,18 @@ function MicIcon({ listening }) {
       <path d="M5 11a7 7 0 0 0 14 0" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" fill="none" />
       <line x1="12" y1="18" x2="12" y2="22" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" />
       <line x1="9" y1="22" x2="15" y2="22" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── HAMBURGER ICON ────────────────────────────────────────────────────────────
+function HamburgerIcon({ dark }) {
+  const color = dark ? "#9b72cc" : "#6b3fa8";
+  return (
+    <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
+      <rect y="0" width="16" height="2" rx="1" fill={color} />
+      <rect y="6" width="11" height="2" rx="1" fill={color} />
+      <rect y="12" width="14" height="2" rx="1" fill={color} />
     </svg>
   );
 }
@@ -1348,10 +1360,104 @@ function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, set
   );
 }
 
+// ── NAV DRAWER ────────────────────────────────────────────────────────────────
+function NavDrawer({ open, onClose, tab, setTab, dark, setDark, onLogout, t }) {
+  const tabs = [
+    { id: "pos",       icon: "🛒", label: "Cashier"   },
+    { id: "menu",      icon: "📋", label: "Menu"      },
+    { id: "inventory", icon: "📦", label: "Inventory" },
+    { id: "reports",   icon: "📊", label: "Reports"   },
+    { id: "settings",  icon: "⚙️", label: "Settings"  },
+  ];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300
+          ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <div
+        className={`fixed top-0 left-0 bottom-0 z-50 w-72 ${t.drawerBg} border-r ${t.border} flex flex-col
+          transition-transform duration-300 ease-in-out
+          ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        {/* Profile / store header */}
+        <div className={`p-5 pt-8 border-b ${t.border}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${t.card} border ${t.border}`}>
+              🏪
+            </div>
+            <button
+              onClick={onClose}
+              className={`w-8 h-8 rounded-xl ${t.card} border ${t.border} flex items-center justify-center ${t.textMuted} text-sm transition ${t.hover}`}>
+              ✕
+            </button>
+          </div>
+          <p className={`text-sm font-bold ${t.text} tracking-wide`}>Annura Store</p>
+          <p className={`text-xs ${t.textMuted} mt-0.5`}>POS System</p>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 p-3 overflow-y-auto flex flex-col gap-1">
+          <p className={`text-[10px] uppercase tracking-[0.2em] font-bold ${t.textFaint} px-3 py-2`}>Navigation</p>
+          {tabs.map(({ id, icon, label }) => (
+            <button
+              key={id}
+              onClick={() => { setTab(id); onClose(); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all
+                ${tab === id
+                  ? `${t.accentBg} text-white shadow-sm`
+                  : `${t.textMuted} ${t.hover}`}`}
+            >
+              <span className="text-base w-6 text-center">{icon}</span>
+              <span className="flex-1">{label}</span>
+              {tab === id && (
+                <span className="w-1.5 h-1.5 rounded-full bg-white/70 shrink-0" />
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div className={`p-3 border-t ${t.border} flex flex-col gap-1`}>
+          {/* Dark mode toggle row */}
+          <button
+            onClick={() => setDark(d => !d)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${t.textMuted} ${t.hover}`}
+          >
+            <span className="text-base w-6 text-center">{dark ? "☀" : "☽"}</span>
+            <span className="flex-1">{dark ? "Light Mode" : "Dark Mode"}</span>
+            <span className={`w-8 h-4 rounded-full transition-all relative ${dark ? "bg-[#7c3aed]" : "bg-gray-400"}`}>
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${dark ? "left-4" : "left-0.5"}`} />
+            </span>
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={() => {
+              onClose();
+              if (window.confirm("Log out?")) onLogout();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition text-left"
+          >
+            <span className="text-base w-6 text-center">🚪</span>
+            Log Out
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("home");
   const [tab, setTab] = useState("pos");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [locked, setLocked] = useState(() => {
     try { return localStorage.getItem("annura_locked") !== "false"; } catch { return true; }
   });
@@ -1414,16 +1520,16 @@ export default function App() {
     return <PinScreen onUnlock={() => setLocked(false)} />;
   }
 
-  const tabs = [
-    { id: "pos", icon: "🛒", label: "Cashier" },
-    { id: "menu", icon: "📋", label: "Menu" },
-    { id: "inventory", icon: "📦", label: "Inventory" },
-    { id: "reports", icon: "📊", label: "Reports" },
-    { id: "settings", icon: "⚙️", label: "Settings" },
-  ];
+  const tabLabels = {
+    pos: "Cashier",
+    menu: "Menu",
+    inventory: "Inventory",
+    reports: "Reports",
+    settings: "Settings",
+  };
 
   return (
-    <div className={`min-h-screen ${t.bg} ${t.text} transition-colors duration-300 pb-20`}>
+    <div className={`min-h-screen ${t.bg} ${t.text} transition-colors duration-300`}>
       <style>{`
         @keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}
         .scrollbar-thin::-webkit-scrollbar{width:4px}
@@ -1434,27 +1540,55 @@ export default function App() {
       `}</style>
 
       {/* Header */}
-      <div className={`flex items-center justify-between px-5 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-40`}>
-        <button onClick={() => setPage("home")} className="flex items-center gap-2.5">
-          <span className="text-xl">🏪</span>
-          <div>
-            <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>ANNURA STORE</p>
-            <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>POS System</p>
-          </div>
-        </button>
-        <button onClick={() => setDark((d) => !d)}
-          className={`w-8 h-8 rounded-xl border ${t.border} ${t.card} flex items-center justify-center text-sm transition-all ${t.hover}`}>
-          {dark ? "☀" : "☽"}
-        </button>
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-30`}>
+        <div className="flex items-center gap-3">
+          {/* Hamburger */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className={`w-9 h-9 rounded-xl border ${t.border} ${t.card} flex flex-col items-center justify-center gap-[4px] transition ${t.hover}`}
+            aria-label="Open menu"
+          >
+            <HamburgerIcon dark={dark} />
+          </button>
+
+          {/* Store name / back to home */}
+          <button onClick={() => setPage("home")} className="flex items-center gap-2">
+            <span className="text-xl">🏪</span>
+            <div>
+              <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>ANNURA STORE</p>
+              <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>
+                {tabLabels[tab]}
+              </p>
+            </div>
+          </button>
+        </div>
+
+        {/* Right side: current tab badge */}
+        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${t.badge}`}>
+          {tabLabels[tab]}
+        </div>
       </div>
 
+      {/* Drawer */}
+      <NavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        tab={tab}
+        setTab={setTab}
+        dark={dark}
+        setDark={setDark}
+        onLogout={() => { setLocked(true); try { localStorage.setItem("annura_locked", "true"); } catch {} }}
+        t={t}
+      />
+
+      {/* Page content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
           <div className="w-8 h-8 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
           <p className={`text-sm ${t.textMuted} font-mono tracking-widest`}>Loading…</p>
         </div>
       ) : (
-        <>
+        <div className="pb-8">
           {tab === "pos" && <PosTab items={items} addToast={addToast} addTransaction={addTransaction} t={t} />}
           {tab === "menu" && <MenuTab items={items} addToast={addToast} t={t} />}
           {tab === "inventory" && <InventoryTab items={items} setItems={setItems} addToast={addToast} t={t} />}
@@ -1469,21 +1603,8 @@ export default function App() {
               items={items}
             />
           )}
-        </>
+        </div>
       )}
-
-      {/* Bottom tab bar */}
-      <div className={`fixed bottom-0 left-0 right-0 z-40 flex border-t ${t.border} ${t.headerBg} backdrop-blur-md`}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        {tabs.map(({ id, icon, label }) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-all
-              ${tab === id ? t.accent : t.textMuted}`}>
-            <span className="text-xl leading-none">{icon}</span>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${tab === id ? "" : "opacity-60"}`}>{label}</span>
-          </button>
-        ))}
-      </div>
 
       <Toast toasts={toasts} />
     </div>
