@@ -40,28 +40,62 @@ function fuzzyMatch(query, items) {
     .map((r) => r.item);
 }
 
+const DEFAULT_CATEGORIES = [
+  "Beverages", "Snacks", "Dairy", "Canned Goods", "Instant Noodles",
+  "Condiments", "Personal Care", "Household", "Frozen Foods", "Bakery",
+  "Produce", "Meat & Seafood", "Rice & Grains", "Sweets & Candy", "Tobacco",
+];
+
+// ── UNIFIED BLUE THEME ────────────────────────────────────────────────────────
+// dark = deep navy blues  |  light = soft sky blues
 const T = {
   dark: {
-    bg: "bg-[#080808]", surface: "bg-[#111111]", card: "bg-[#181818]",
-    input: "bg-[#0d0d0d]", border: "border-[#2a2a2a]", divide: "divide-[#1e1e1e]",
-    text: "text-[#f0f0f0]", textMuted: "text-[#888888]", textFaint: "text-[#333333]",
-    hover: "hover:bg-[#1a1a1a]", accent: "text-[#ffffff]", accentBg: "bg-[#ffffff]",
-    accentText: "text-[#000000]", accentHov: "hover:bg-[#e0e0e0]",
-    btnSec: "bg-[#1a1a1a] hover:bg-[#242424] text-[#f0f0f0]", tblHead: "bg-[#0d0d0d]",
-    rowHov: "hover:bg-[#151515]", suggestion: "bg-[#111111] hover:bg-[#1a1a1a]",
-    headerBg: "bg-[#080808]/95", badge: "bg-[#1e1e1e] text-[#aaaaaa]",
-    tabActive: "bg-[#ffffff] text-[#000000]", tabInactive: "text-[#666666] hover:text-[#cccccc]",
+    bg: "bg-[#0d1b2e]",
+    surface: "bg-[#132238]",
+    card: "bg-[#1a2f47]",
+    input: "bg-[#0d1b2e]",
+    border: "border-[#1e3550]",
+    divide: "divide-[#1e3550]",
+    text: "text-[#e8f0fe]",
+    textMuted: "text-[#7a9cc0]",
+    textFaint: "text-[#2a4a6b]",
+    hover: "hover:bg-[#1a2f47]",
+    accent: "text-[#60a5fa]",
+    accentBg: "bg-[#2563eb]",
+    accentText: "text-white",
+    accentHov: "hover:bg-[#1d4ed8]",
+    btnSec: "bg-[#1a2f47] hover:bg-[#223a57] text-[#e8f0fe]",
+    tblHead: "bg-[#0d1b2e]",
+    rowHov: "hover:bg-[#1a2f47]",
+    suggestion: "bg-[#132238] hover:bg-[#1a2f47]",
+    headerBg: "bg-[#0d1b2e]/95",
+    badge: "bg-[#1a2f47] text-[#7a9cc0]",
+    tabActive: "bg-[#2563eb] text-white",
+    tabInactive: "text-[#4a7aa0] hover:text-[#7a9cc0]",
   },
   light: {
-    bg: "bg-[#f8f8f8]", surface: "bg-[#ffffff]", card: "bg-[#f2f2f2]",
-    input: "bg-[#ebebeb]", border: "border-[#dedede]", divide: "divide-[#e8e8e8]",
-    text: "text-[#111111]", textMuted: "text-[#666666]", textFaint: "text-[#cccccc]",
-    hover: "hover:bg-[#f0f0f0]", accent: "text-[#000000]", accentBg: "bg-[#111111]",
-    accentText: "text-[#ffffff]", accentHov: "hover:bg-[#333333]",
-    btnSec: "bg-[#eeeeee] hover:bg-[#e4e4e4] text-[#111111]", tblHead: "bg-[#f0f0f0]",
-    rowHov: "hover:bg-[#fafafa]", suggestion: "bg-white hover:bg-[#f5f5f5]",
-    headerBg: "bg-[#f8f8f8]/95", badge: "bg-[#eeeeee] text-[#555555]",
-    tabActive: "bg-[#111111] text-[#ffffff]", tabInactive: "text-[#999999] hover:text-[#333333]",
+    bg: "bg-[#e8f2fc]",
+    surface: "bg-[#ffffff]",
+    card: "bg-[#ddeef9]",
+    input: "bg-[#eaf3fb]",
+    border: "border-[#b8d4ee]",
+    divide: "divide-[#cce0f5]",
+    text: "text-[#0d2a4a]",
+    textMuted: "text-[#4a7aa0]",
+    textFaint: "text-[#a8c8e8]",
+    hover: "hover:bg-[#ddeef9]",
+    accent: "text-[#1d4ed8]",
+    accentBg: "bg-[#2563eb]",
+    accentText: "text-white",
+    accentHov: "hover:bg-[#1d4ed8]",
+    btnSec: "bg-[#ddeef9] hover:bg-[#cce0f5] text-[#0d2a4a]",
+    tblHead: "bg-[#eaf3fb]",
+    rowHov: "hover:bg-[#f0f8ff]",
+    suggestion: "bg-white hover:bg-[#eaf3fb]",
+    headerBg: "bg-[#e8f2fc]/95",
+    badge: "bg-[#ddeef9] text-[#4a7aa0]",
+    tabActive: "bg-[#2563eb] text-white",
+    tabInactive: "text-[#7aaac8] hover:text-[#4a7aa0]",
   },
 };
 
@@ -71,9 +105,9 @@ function Toast({ toasts }) {
     <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id} className={`px-4 py-3 rounded-xl text-sm font-medium shadow-2xl pointer-events-auto
-          ${t.type === "success" ? "bg-[#1a1a1a] text-white border border-white/10" : ""}
-          ${t.type === "error" ? "bg-[#1a0000] text-red-300 border border-red-900/30" : ""}
-          ${t.type === "info" ? "bg-white text-black" : ""}`}>
+          ${t.type === "success" ? "bg-[#132238] text-[#60a5fa] border border-[#1e3550]" : ""}
+          ${t.type === "error" ? "bg-[#1a0a0a] text-red-300 border border-red-900/30" : ""}
+          ${t.type === "info" ? "bg-[#2563eb] text-white" : ""}`}>
           {t.msg}
         </div>
       ))}
@@ -130,11 +164,14 @@ function useVoiceSearch(items, onResult, onError) {
   return { listening, start, stop, supported };
 }
 
+// ── BARCODE SCANNER (barcode-only, 1s debounce) ───────────────────────────────
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const mountedRef = useRef(true);
   const readerRef = useRef(null);
+  const lastCodeRef = useRef(null);
+  const lastTimeRef = useRef(0);
   const [status, setStatus] = useState("starting");
 
   useEffect(() => {
@@ -158,13 +195,24 @@ function BarcodeScanner({ onDetect, onClose }) {
         hints.set(DecodeHintType.TRY_HARDER, true);
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [
           BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.CODE_128,
-          BarcodeFormat.CODE_39, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.QR_CODE,
+          BarcodeFormat.CODE_39, BarcodeFormat.CODE_93, BarcodeFormat.UPC_A,
+          BarcodeFormat.UPC_E, BarcodeFormat.ITF, BarcodeFormat.CODABAR,
         ]);
         const reader = new BrowserMultiFormatReader(hints);
         readerRef.current = reader;
         reader.decodeFromStream(stream, video, (result) => {
-          if (!mountedRef.current) return;
-          if (result) { cleanup(); onDetect(result.getText()); }
+          if (!mountedRef.current || !result) return;
+          const text = result.getText();
+          if (text.startsWith("http") || text.startsWith("www.") || text.includes("://")) return;
+          const now = Date.now();
+          if (text === lastCodeRef.current && now - lastTimeRef.current < 1000) return;
+          lastCodeRef.current = text;
+          lastTimeRef.current = now;
+          setTimeout(() => {
+            if (!mountedRef.current) return;
+            cleanup();
+            onDetect(text);
+          }, 1000);
         });
       } catch { if (mountedRef.current) setStatus("error"); }
     }
@@ -188,7 +236,7 @@ function BarcodeScanner({ onDetect, onClose }) {
               ["bottom-0 left-0","border-b-2 border-l-2"],["bottom-0 right-0","border-b-2 border-r-2"]
             ].map(([pos,brd],i) => <span key={i} className={`absolute w-6 h-6 ${pos} ${brd} border-white/70 rounded-sm`} />)}
             {status === "active" && (
-              <div className="absolute inset-x-0 h-0.5 bg-white/50" style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }} />
+              <div className="absolute inset-x-0 h-0.5 bg-blue-400/70" style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }} />
             )}
           </div>
         </div>
@@ -206,7 +254,7 @@ function BarcodeScanner({ onDetect, onClose }) {
         )}
         {status === "active" && (
           <div className="absolute bottom-3 left-0 right-0 flex justify-center">
-            <span className="text-xs text-white/50 bg-black/50 px-3 py-1 rounded-full">Point camera at barcode</span>
+            <span className="text-xs text-white/50 bg-black/50 px-3 py-1 rounded-full">Point at barcode — hold steady</span>
           </div>
         )}
       </div>
@@ -217,64 +265,123 @@ function BarcodeScanner({ onDetect, onClose }) {
   );
 }
 
-// ── CINEMATIC HOMEPAGE ────────────────────────────────────────────────────────
+// ── SIMPLE ENTRY PAGE — matches the reference exactly ────────────────────────
 function HomePage({ onEnter, dark, setDark }) {
   const [entered, setEntered] = useState(false);
   const handleEnter = () => { setEntered(true); setTimeout(() => onEnter(), 600); };
 
   return (
-    <div className={`min-h-screen flex flex-col relative overflow-hidden select-none transition-all duration-700 ${entered ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
-      style={{ background: "linear-gradient(180deg, #000000 0%, #0a0a0a 30%, #111111 60%, #1a1a1a 100%)" }}>
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {Array.from({ length: 80 }).map((_, i) => (
-          <div key={i} className="absolute rounded-full bg-white"
-            style={{
-              width: Math.random() * 2 + 0.5 + "px", height: Math.random() * 2 + 0.5 + "px",
-              top: Math.random() * 65 + "%", left: Math.random() * 100 + "%",
-              opacity: Math.random() * 0.7 + 0.1,
-              animation: `twinkle ${2 + Math.random() * 4}s ease-in-out ${Math.random() * 3}s infinite alternate`,
-            }} />
-        ))}
-      </div>
-      <div className="absolute inset-0 flex items-end pointer-events-none">
-        <svg viewBox="0 0 390 420" preserveAspectRatio="xMidYMax slice" className="w-full" style={{ height: "65%" }}>
-          <path d="M0 420 L0 280 L60 210 L120 260 L180 160 L240 230 L300 180 L340 220 L390 190 L390 420 Z" fill="#0d0d0d" />
-          <path d="M0 420 L0 320 L50 290 L100 320 L150 240 L200 300 L250 220 L310 280 L355 250 L390 270 L390 420 Z" fill="#111111" />
-          <path d="M0 420 L0 370 L40 350 L100 370 L160 340 L220 360 L280 345 L340 360 L390 350 L390 420 Z" fill="#161616" />
-          <path d="M178 162 L165 185 L192 185 Z" fill="rgba(255,255,255,0.12)" />
-          <path d="M298 182 L286 205 L311 205 Z" fill="rgba(255,255,255,0.08)" />
-          <ellipse cx="180" cy="188" rx="18" ry="4" fill="rgba(255,255,255,0.06)" />
-        </svg>
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none"
-        style={{ background: "linear-gradient(0deg, rgba(10,10,10,0.9) 0%, transparent 100%)" }} />
-      <div className="relative z-30 flex items-center justify-between px-6 pt-8">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🏪</span>
-          <span className="text-white/40 text-xs uppercase tracking-[0.3em] font-light">Inah Store</span>
-        </div>
-        <button onClick={() => setDark(d => !d)}
-          className="w-8 h-8 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 flex items-center justify-center text-white/60 text-sm transition-all">
+    <div
+      className={`min-h-screen flex flex-col items-center justify-between transition-all duration-600 ${entered ? "opacity-0 scale-105" : "opacity-100 scale-100"}`}
+      style={{ background: "linear-gradient(175deg, #4a90d9 0%, #2c6fbd 40%, #1a4f9c 70%, #163f82 100%)" }}
+    >
+      {/* top-right theme toggle */}
+      <div className="w-full flex justify-end px-6 pt-8">
+        <button
+          onClick={() => setDark(d => !d)}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-white/60 text-sm transition-all"
+          style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)" }}
+        >
           {dark ? "☀" : "☽"}
         </button>
       </div>
-      <div className="relative z-30 flex-1 flex flex-col items-center justify-start pt-16 px-8 text-center">
-        <p className="text-white/30 text-xs uppercase tracking-[0.4em] mb-4 font-light">Welcome to</p>
-        <h1 className="text-white font-black leading-[0.9] mb-4 tracking-tight"
-          style={{ fontSize: "clamp(3rem, 14vw, 5.5rem)", textShadow: "0 0 80px rgba(255,255,255,0.1)" }}>
-          Explore<br /><span className="text-white/50">Your</span><br />Journey
+
+      {/* center content */}
+      <div className="flex flex-col items-center gap-4 px-8 text-center">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-2"
+          style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)" }}>
+          <span className="text-3xl">🏪</span>
+        </div>
+        <h1 className="text-white font-bold text-4xl tracking-tight" style={{ textShadow: "0 2px 20px rgba(0,0,0,0.2)" }}>
+          Annura Store
         </h1>
-        <p className="text-white/25 text-sm tracking-widest font-light mt-2">Make your sales happy</p>
+        <p className="text-white/50 text-sm tracking-wide">Manage your store with ease</p>
       </div>
-      <div className="relative z-30 flex flex-col items-center pb-16 gap-4">
-        <button onClick={handleEnter}
-          className="w-16 h-16 rounded-full border-2 border-white/20 bg-white/10 backdrop-blur-sm flex items-center justify-center text-white text-xl font-bold transition-all hover:bg-white/20 hover:scale-105 active:scale-95"
-          style={{ boxShadow: "0 0 40px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,0.15)" }}>
-          Go
+
+      {/* bottom: enter button + credit */}
+      <div className="flex flex-col items-center gap-5 pb-14 w-full px-8">
+        <button
+          onClick={handleEnter}
+          className="w-full max-w-xs py-4 rounded-2xl font-bold text-base tracking-wide transition-all active:scale-95"
+          style={{
+            background: "rgba(255,255,255,0.18)",
+            border: "1px solid rgba(255,255,255,0.3)",
+            color: "white",
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+          }}
+        >
+          Get Started
         </button>
-        <p className="text-white/20 text-[10px] uppercase tracking-[0.4em]">Swipe For More</p>
+
+        <div className="flex items-center gap-2">
+          <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.2)" }} />
+          <p className="text-white/30 text-[11px] tracking-[0.25em] uppercase">Developed by mjdev</p>
+          <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.2)" }} />
+        </div>
       </div>
-      <style>{`@keyframes twinkle{0%{opacity:0.1}100%{opacity:0.8}} @keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
+
+      <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
+    </div>
+  );
+}
+
+// ── CATEGORY COMBOBOX ─────────────────────────────────────────────────────────
+function CategoryComboBox({ value, onChange, allCategories, t }) {
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState(value || "");
+  const wrapRef = useRef(null);
+
+  useEffect(() => { setInput(value || ""); }, [value]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = allCategories.filter(c => !input.trim() || c.toLowerCase().includes(input.toLowerCase()));
+
+  const select = (cat) => { onChange(cat); setInput(cat); setOpen(false); };
+
+  const handleInput = (e) => { setInput(e.target.value); onChange(e.target.value); setOpen(true); };
+
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="relative">
+        <input className={inputCls} placeholder="Select or type category…" value={input}
+          onChange={handleInput} onFocus={() => setOpen(true)} />
+        <button type="button" onClick={() => setOpen(v => !v)}
+          className={`absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg ${t.textMuted}`}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      {open && (
+        <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl border ${t.border} overflow-hidden z-50 shadow-2xl ${t.surface} max-h-52 overflow-y-auto`}>
+          {input.trim() && !allCategories.find(c => c.toLowerCase() === input.trim().toLowerCase()) && (
+            <button onMouseDown={(e) => { e.preventDefault(); select(input.trim()); }}
+              className={`w-full flex items-center gap-2 px-4 py-3 text-sm ${t.suggestion} transition border-b ${t.border} text-left`}>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold">NEW</span>
+              <span className={t.text}>Add "{input.trim()}"</span>
+            </button>
+          )}
+          {!filtered.length && !input.trim() && (
+            <div className={`px-4 py-3 text-sm ${t.textMuted}`}>Type to add a new category</div>
+          )}
+          {filtered.map((cat) => (
+            <button key={cat} onMouseDown={(e) => { e.preventDefault(); select(cat); }}
+              className={`w-full flex items-center px-4 py-3 text-sm ${t.suggestion} transition border-b ${t.border} last:border-b-0 text-left`}>
+              <span className={`font-medium ${t.text}`}>{cat}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -317,8 +424,7 @@ function MenuTab({ items, addToast, t }) {
     (err) => addToast(err, "error")
   );
 
-  // ✅ font-size 16px prevents iOS zoom
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-white/40 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
@@ -372,8 +478,8 @@ function MenuTab({ items, addToast, t }) {
         <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-none">
           {categories.map(cat => (
             <button key={cat} onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest transition-all border
-                ${activeCategory === cat ? `${t.accentBg} ${t.accentText} border-transparent` : `${t.surface} ${t.border} ${t.textMuted} hover:border-white/20}`}`}>
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest transition-all border whitespace-nowrap
+                ${activeCategory === cat ? `${t.accentBg} ${t.accentText} border-transparent` : `${t.surface} ${t.border} ${t.textMuted} hover:border-blue-400/30`}`}>
               {cat}
             </button>
           ))}
@@ -394,7 +500,7 @@ function MenuTab({ items, addToast, t }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {filtered.map((item) => (
             <div key={item.id} className={`${t.surface} border ${t.border} rounded-2xl p-4 flex flex-col gap-2 transition ${t.hover} group cursor-default`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold mb-1 ${t.card} border ${t.border} ${t.textMuted} group-hover:border-white/20 transition`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold mb-1 ${t.card} border ${t.border} ${t.textMuted} transition`}>
                 {item.name.charAt(0).toUpperCase()}
               </div>
               <p className={`text-sm font-semibold ${t.text} leading-tight line-clamp-2`}>{item.name}</p>
@@ -412,18 +518,17 @@ function MenuTab({ items, addToast, t }) {
 // ── RECEIPT MODAL ─────────────────────────────────────────────────────────────
 function ReceiptModal({ receipt, onClose, t }) {
   const printRef = useRef(null);
-
   const handlePrint = () => {
     const content = printRef.current.innerHTML;
     const win = window.open("", "_blank", "width=400,height=600");
-    win.document.write(`<html><head><title>Receipt - Inah Store</title>
+    win.document.write(`<html><head><title>Receipt - Annura Store</title>
       <style>body{font-family:'Courier New',monospace;padding:20px;font-size:13px;color:#000}.center{text-align:center}.divider{border-top:1px dashed #000;margin:8px 0}.row{display:flex;justify-content:space-between;margin:3px 0}.bold{font-weight:bold}.large{font-size:16px;font-weight:bold}.small{font-size:11px;color:#555}</style>
       </head><body>${content}</body></html>`);
     win.document.close(); win.focus(); win.print(); win.close();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className={`${t.surface} border ${t.border} rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]`}>
         <div className={`flex items-center justify-between px-5 py-4 border-b ${t.border}`}>
           <div className="flex items-center gap-2"><span className="text-lg">🧾</span><p className={`text-sm font-bold ${t.text} uppercase tracking-widest`}>Receipt</p></div>
@@ -431,8 +536,8 @@ function ReceiptModal({ receipt, onClose, t }) {
         </div>
         <div className="overflow-y-auto flex-1 p-5">
           <div ref={printRef}>
-            <div className="center text-center mb-4">
-              <p className={`text-lg font-black ${t.text} tracking-widest`}>🏪 INAH STORE</p>
+            <div className="text-center mb-4">
+              <p className={`text-lg font-black ${t.text} tracking-widest`}>🏪 ANNURA STORE</p>
               <p className={`text-xs ${t.textMuted} mt-1`}>POS System</p>
               <p className={`text-xs ${t.textMuted}`}>{receipt.date}</p>
               <p className={`text-xs ${t.textMuted} font-mono`}>Receipt #{receipt.id}</p>
@@ -460,7 +565,7 @@ function ReceiptModal({ receipt, onClose, t }) {
             </div>
             <div className={`border-t border-dashed ${t.border} my-4`} />
             <p className={`text-center text-xs ${t.textMuted}`}>Thank you for shopping!</p>
-            <p className={`text-center text-xs ${t.textFaint} mt-1`}>— Inah Store —</p>
+            <p className={`text-center text-xs ${t.textFaint} mt-1`}>— Annura Store —</p>
           </div>
         </div>
         <div className={`flex gap-2 p-4 border-t ${t.border}`}>
@@ -541,14 +646,12 @@ function PosTab({ items, addToast, addTransaction, t }) {
     const receiptDate = now.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
     const receiptData = { id: receiptId, date: receiptDate, items: [...cart], total, count, cash: cashNum, change };
     setReceipt(receiptData);
-    // ✅ Save to transaction history
     addTransaction(receiptData);
     setCart([]);
     setCashVal("");
   };
 
-  // ✅ text-base = 16px, prevents iOS zoom
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-white/30 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -669,7 +772,7 @@ function PosTab({ items, addToast, addTransaction, t }) {
   );
 }
 
-// ── INVENTORY TAB (with Transaction History) ──────────────────────────────────
+// ── INVENTORY TAB ─────────────────────────────────────────────────────────────
 function InventoryTab({ items, setItems, transactions, addToast, t }) {
   const [form, setForm] = useState({ name: "", price: "", barcode: "", category: "" });
   const [editingId, setEditingId] = useState(null);
@@ -678,6 +781,11 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  const allCategories = Array.from(new Set([
+    ...DEFAULT_CATEGORIES,
+    ...items.map(i => i.category).filter(Boolean),
+  ])).sort();
 
   const filtered = invSearch.trim()
     ? items.filter((i) =>
@@ -730,8 +838,7 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
 
   const cancelEdit = () => { setEditingId(null); setForm({ name: "", price: "", barcode: "", category: "" }); setError(""); };
 
-  // ✅ text-base = 16px prevents iOS zoom
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-white/30 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
@@ -748,7 +855,6 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
           </div>
           <span className={`${t.textMuted} text-xs transition-transform ${historyOpen ? "rotate-180" : ""}`}>▼</span>
         </button>
-
         {historyOpen && (
           <div className={`border-t ${t.border}`}>
             {!transactions.length ? (
@@ -757,7 +863,7 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
                 <p className={`${t.textFaint} text-sm`}>No transactions yet.</p>
               </div>
             ) : (
-              <div className="flex flex-col divide-y max-h-80 overflow-y-auto scrollbar-thin" style={{ ['--divide-color']: 'transparent' }}>
+              <div className="flex flex-col divide-y max-h-80 overflow-y-auto scrollbar-thin">
                 {[...transactions].reverse().map((tx) => (
                   <div key={tx.id} className={`px-5 py-4 ${t.hover} transition`}>
                     <div className="flex items-center justify-between mb-2">
@@ -810,8 +916,12 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
           </div>
           <div>
             <label className={`text-xs ${t.textMuted} mb-1.5 block font-medium`}>Category <span className={t.textFaint}>(optional)</span></label>
-            <input className={inputCls} placeholder="e.g. Beverages"
-              value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
+            <CategoryComboBox
+              value={form.category}
+              onChange={(val) => setForm(f => ({ ...f, category: val }))}
+              allCategories={allCategories}
+              t={t}
+            />
           </div>
         </div>
         {scannerOpen && (
@@ -883,7 +993,7 @@ export default function App() {
   const [page, setPage] = useState("home");
   const [tab, setTab] = useState("pos");
   const [dark, setDark] = useState(() => {
-    const saved = localStorage.getItem("inah_theme");
+    const saved = localStorage.getItem("annura_theme");
     if (saved) return saved === "dark";
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
@@ -899,22 +1009,19 @@ export default function App() {
     setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 2800);
   }, []);
 
-  // ✅ Save transaction to state (and optionally persist to localStorage)
   const addTransaction = useCallback((receipt) => {
     setTransactions((prev) => {
       const updated = [...prev, receipt];
-      try { localStorage.setItem("inah_transactions", JSON.stringify(updated)); } catch {}
+      try { localStorage.setItem("annura_transactions", JSON.stringify(updated)); } catch {}
       return updated;
     });
   }, []);
 
   useEffect(() => {
-    // Load transactions from localStorage on start
     try {
-      const saved = localStorage.getItem("inah_transactions");
+      const saved = localStorage.getItem("annura_transactions");
       if (saved) setTransactions(JSON.parse(saved));
     } catch {}
-
     supabase.from("items").select("*").order("created_at", { ascending: true })
       .then(({ data, error }) => {
         if (error) addToast("Could not load items.", "error");
@@ -923,16 +1030,15 @@ export default function App() {
       });
   }, []);
 
-  useEffect(() => { localStorage.setItem("inah_theme", dark ? "dark" : "light"); }, [dark]);
+  useEffect(() => { localStorage.setItem("annura_theme", dark ? "dark" : "light"); }, [dark]);
 
   if (page === "home") return (
     <>
       <HomePage onEnter={() => setPage("app")} dark={dark} setDark={setDark} />
-      <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}} @keyframes twinkle{0%{opacity:0.1}100%{opacity:0.8}}`}</style>
+      <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
     </>
   );
 
-  // ── BOTTOM NAV TABS ──
   const tabs = [
     { id: "pos", icon: "🛒", label: "Cashier" },
     { id: "menu", icon: "📋", label: "Menu" },
@@ -945,17 +1051,16 @@ export default function App() {
         @keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}
         .scrollbar-thin::-webkit-scrollbar{width:4px}
         .scrollbar-thin::-webkit-scrollbar-track{background:transparent}
-        .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:9999px}
+        .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:9999px}
         .scrollbar-none::-webkit-scrollbar{display:none}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
       `}</style>
 
-      {/* ── TOP HEADER (store name + theme toggle only) ── */}
       <div className={`flex items-center justify-between px-5 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-40`}>
         <button onClick={() => setPage("home")} className="flex items-center gap-2.5">
           <span className="text-xl">🏪</span>
           <div>
-            <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>INAH STORE</p>
+            <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>ANNURA STORE</p>
             <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>POS System</p>
           </div>
         </button>
@@ -967,7 +1072,7 @@ export default function App() {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
-          <div className={`w-8 h-8 border-2 ${dark ? "border-white/20 border-t-white" : "border-black/10 border-t-black"} rounded-full animate-spin`} />
+          <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
           <p className={`text-sm ${t.textMuted} font-mono tracking-widest`}>Loading…</p>
         </div>
       ) : (
@@ -978,7 +1083,6 @@ export default function App() {
         </>
       )}
 
-      {/* ── BOTTOM NAV BAR ── */}
       <div className={`fixed bottom-0 left-0 right-0 z-40 flex border-t ${t.border} ${t.headerBg} backdrop-blur-md`}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {tabs.map(({ id, icon, label }) => (
