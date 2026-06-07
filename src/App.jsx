@@ -52,7 +52,7 @@ function fuzzyMatch(query, items) {
 const DEFAULT_CATEGORIES = [
   "Beverages", "Snacks", "Dairy", "Canned Goods", "Instant Noodles",
   "Condiments", "Personal Care", "Household", "Frozen Foods", "Bakery",
-  "Produce", "Meat & Seafood", "Rice & Grains", "Sweets & Candy", "Tobacco",
+  "Produce", "Cigarettes", "Rice & Grains", "Sweets & Candy", "Medicines", "Unknown"
 ];
 
 const DEFAULT_PIN = "1234";
@@ -1545,7 +1545,7 @@ export default function App() {
           {/* Hamburger */}
           <button
             onClick={() => setDrawerOpen(true)}
-            className={`w-9 h-9 rounded-xl border ${t.border} ${t.card} flex flex-col items-center justify-center gap-[4px] transition ${t.hover}`}
+            className={`w-9 h-9 rounded-xl border ${t.border} ${t.card} flex flex-col items-center justify-center  transition ${t.hover}`}
             aria-label="Open menu"
           >
             <HamburgerIcon dark={dark} />
