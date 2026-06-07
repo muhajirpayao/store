@@ -15,6 +15,15 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const fmt = (n) =>
   "₱" + parseFloat(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// ── BEEP SOUND ────────────────────────────────────────────────────────────────
+function playBeep() {
+  try {
+    const audio = new Audio("/sound/barcodeBeep.mp3");
+    audio.volume = 0.8;
+    audio.play().catch(() => {});
+  } catch {}
+}
+
 function fuzzyScore(query, target) {
   const q = query.toLowerCase();
   const t = target.toLowerCase();
@@ -46,7 +55,9 @@ const DEFAULT_CATEGORIES = [
   "Produce", "Meat & Seafood", "Rice & Grains", "Sweets & Candy", "Tobacco",
 ];
 
-// ── UNIFIED PURPLE THEME ──────────────────────────────────────────────────────
+const DEFAULT_PIN = "1234";
+
+// ── THEME ─────────────────────────────────────────────────────────────────────
 const T = {
   dark: {
     bg: "bg-[#0e0720]",
@@ -71,6 +82,8 @@ const T = {
     badge: "bg-[#22104a] text-[#9b72cc]",
     tabActive: "bg-[#7c3aed] text-white",
     tabInactive: "text-[#5b3a8a] hover:text-[#9b72cc]",
+    drawerBg: "bg-[#110828]",
+    danger: "text-red-400 hover:text-red-300",
   },
   light: {
     bg: "bg-[#f0ebff]",
@@ -95,13 +108,15 @@ const T = {
     badge: "bg-[#e8dfff] text-[#6b3fa8]",
     tabActive: "bg-[#7c3aed] text-white",
     tabInactive: "text-[#b09ad0] hover:text-[#6b3fa8]",
+    drawerBg: "bg-[#f8f5ff]",
+    danger: "text-red-500 hover:text-red-600",
   },
 };
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
 function Toast({ toasts }) {
   return (
-    <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed bottom-6 right-4 flex flex-col gap-2 pointer-events-none z-50">
       {toasts.map((t) => (
         <div key={t.id} className={`px-4 py-3 rounded-xl text-sm font-medium shadow-2xl pointer-events-auto
           ${t.type === "success" ? "bg-[#180d35] text-[#b388ff] border border-[#2e1660]" : ""}
@@ -121,6 +136,18 @@ function MicIcon({ listening }) {
       <path d="M5 11a7 7 0 0 0 14 0" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" fill="none" />
       <line x1="12" y1="18" x2="12" y2="22" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" />
       <line x1="9" y1="22" x2="15" y2="22" stroke={listening ? "#ef4444" : "currentColor"} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ── HAMBURGER ICON ────────────────────────────────────────────────────────────
+function HamburgerIcon({ dark }) {
+  const color = dark ? "#9b72cc" : "#6b3fa8";
+  return (
+    <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
+      <rect y="0" width="16" height="2" rx="1" fill={color} />
+      <rect y="6" width="11" height="2" rx="1" fill={color} />
+      <rect y="12" width="14" height="2" rx="1" fill={color} />
     </svg>
   );
 }
@@ -207,11 +234,12 @@ function BarcodeScanner({ onDetect, onClose }) {
           if (text === lastCodeRef.current && now - lastTimeRef.current < 1000) return;
           lastCodeRef.current = text;
           lastTimeRef.current = now;
+          playBeep();
           setTimeout(() => {
             if (!mountedRef.current) return;
             cleanup();
             onDetect(text);
-          }, 1000);
+          }, 300);
         });
       } catch { if (mountedRef.current) setStatus("error"); }
     }
@@ -264,6 +292,79 @@ function BarcodeScanner({ onDetect, onClose }) {
   );
 }
 
+// ── PIN LOCK SCREEN ───────────────────────────────────────────────────────────
+function PinScreen({ onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+  const savedPin = (() => { try { return localStorage.getItem("annura_pin") || DEFAULT_PIN; } catch { return DEFAULT_PIN; } })();
+
+  const press = (val) => {
+    if (pin.length >= 6) return;
+    const next = pin + val;
+    setPin(next);
+    setError(false);
+    if (next.length >= savedPin.length) {
+      setTimeout(() => {
+        if (next === savedPin) {
+          try { localStorage.setItem("annura_locked", "false"); } catch {}
+          onUnlock();
+        } else {
+          setShake(true);
+          setError(true);
+          setTimeout(() => { setPin(""); setShake(false); }, 600);
+        }
+      }, 100);
+    }
+  };
+
+  const del = () => setPin(p => p.slice(0, -1));
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center"
+      style={{ background: "linear-gradient(175deg,#6b3fd4 0%,#4a2098 40%,#2d1070 70%,#1a0a4e 100%)" }}>
+      <div className="flex flex-col items-center gap-8 w-full max-w-xs px-8">
+        <div>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+            style={{ background: "rgba(160,100,255,0.25)", border: "1px solid rgba(160,100,255,0.4)" }}>
+            <span className="text-2xl">🔐</span>
+          </div>
+          <p className="text-white font-bold text-xl text-center tracking-widest">Enter PIN</p>
+          <p className="text-white/40 text-xs text-center mt-1">Annura Store</p>
+        </div>
+
+        <div className={`flex gap-4 ${shake ? "animate-[shake_0.4s_ease-in-out]" : ""}`}>
+          {Array.from({ length: Math.max(savedPin.length, 4) }).map((_, i) => (
+            <div key={i} className={`w-3.5 h-3.5 rounded-full transition-all duration-150 border-2
+              ${i < pin.length
+                ? error ? "bg-red-400 border-red-400" : "bg-purple-300 border-purple-300"
+                : "border-white/30 bg-transparent"}`} />
+          ))}
+        </div>
+
+        {error && <p className="text-red-400 text-sm -mt-4">Incorrect PIN</p>}
+
+        <div className="grid grid-cols-3 gap-3 w-full">
+          {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((k, i) => (
+            <button key={i} onClick={() => k === "⌫" ? del() : k ? press(k) : null}
+              disabled={!k}
+              className={`h-14 rounded-2xl text-lg font-semibold transition-all active:scale-95
+                ${!k ? "invisible" : k === "⌫"
+                  ? "bg-white/10 text-white/60 hover:bg-white/20"
+                  : "bg-white/15 text-white hover:bg-white/25"}`}
+              style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+              {k}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-white/20 text-xs text-center">Default PIN: 1234</p>
+      </div>
+      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}`}</style>
+    </div>
+  );
+}
+
 // ── HOME PAGE ─────────────────────────────────────────────────────────────────
 function HomePage({ onEnter, dark, setDark }) {
   const [entered, setEntered] = useState(false);
@@ -274,18 +375,14 @@ function HomePage({ onEnter, dark, setDark }) {
       className={`min-h-screen flex flex-col items-center justify-between transition-all duration-600 ${entered ? "opacity-0 scale-105" : "opacity-100 scale-100"}`}
       style={{ background: "linear-gradient(175deg, #6b3fd4 0%, #4a2098 40%, #2d1070 70%, #1a0a4e 100%)" }}
     >
-      {/* top-right theme toggle */}
       <div className="w-full flex justify-end px-6 pt-8">
-        <button
-          onClick={() => setDark(d => !d)}
+        <button onClick={() => setDark(d => !d)}
           className="w-9 h-9 rounded-full flex items-center justify-center text-white/60 text-sm transition-all"
-          style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)" }}
-        >
+          style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)" }}>
           {dark ? "☀" : "☽"}
         </button>
       </div>
 
-      {/* center content */}
       <div className="flex flex-col items-center gap-4 px-8 text-center">
         <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-2"
           style={{ background: "rgba(160,100,255,0.25)", border: "1px solid rgba(160,100,255,0.4)" }}>
@@ -297,25 +394,13 @@ function HomePage({ onEnter, dark, setDark }) {
         <p className="text-white/50 text-sm tracking-wide">Bring your sales &amp; inventory together</p>
       </div>
 
-      {/* bottom: arrow button + feature pills + credit */}
       <div className="flex flex-col items-center gap-5 pb-14 w-full px-8">
-        {/* Arrow enter button */}
-        <button
-          onClick={handleEnter}
+        <button onClick={handleEnter}
           className="w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95"
-          style={{
-            background: "rgba(140,80,255,0.45)",
-            border: "1px solid rgba(160,100,255,0.5)",
-            color: "white",
-            fontSize: "22px",
-            boxShadow: "0 4px 24px rgba(100,40,200,0.3)",
-          }}
-        >
+          style={{ background: "rgba(140,80,255,0.45)", border: "1px solid rgba(160,100,255,0.5)", color: "white", fontSize: "22px", boxShadow: "0 4px 24px rgba(100,40,200,0.3)" }}>
           →
         </button>
         <p className="text-white/30 text-[11px] tracking-[0.25em] uppercase">Tap to Open</p>
-
-        {/* Feature pills */}
         <div className="flex gap-2 w-full max-w-xs">
           {[["🖥", "POS"], ["📦", "Inventory"], ["☁", "Cloud"]].map(([icon, label]) => (
             <div key={label} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl"
@@ -325,14 +410,12 @@ function HomePage({ onEnter, dark, setDark }) {
             </div>
           ))}
         </div>
-
         <div className="flex items-center gap-2">
           <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.15)" }} />
           <p className="text-white/25 text-[11px] tracking-[0.25em] uppercase">Developed by mjdev</p>
           <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.15)" }} />
         </div>
       </div>
-
       <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
     </div>
   );
@@ -345,11 +428,8 @@ function CategoryComboBox({ value, onChange, allCategories, t }) {
   const wrapRef = useRef(null);
 
   useEffect(() => { setInput(value || ""); }, [value]);
-
   useEffect(() => {
-    const handler = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
@@ -380,9 +460,6 @@ function CategoryComboBox({ value, onChange, allCategories, t }) {
               <span className={t.text}>Add "{input.trim()}"</span>
             </button>
           )}
-          {!filtered.length && !input.trim() && (
-            <div className={`px-4 py-3 text-sm ${t.textMuted}`}>Type to add a new category</div>
-          )}
           {filtered.map((cat) => (
             <button key={cat} onMouseDown={(e) => { e.preventDefault(); select(cat); }}
               className={`w-full flex items-center px-4 py-3 text-sm ${t.suggestion} transition border-b ${t.border} last:border-b-0 text-left`}>
@@ -391,6 +468,81 @@ function CategoryComboBox({ value, onChange, allCategories, t }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── RECEIPT MODAL ─────────────────────────────────────────────────────────────
+function ReceiptModal({ receipt, onClose, t }) {
+  const printRef = useRef(null);
+  const handlePrint = () => {
+    const content = printRef.current.innerHTML;
+    const win = window.open("", "_blank", "width=400,height=600");
+    win.document.write(`<html><head><title>Receipt - Annura Store</title>
+      <style>body{font-family:'Courier New',monospace;padding:20px;font-size:13px;color:#000}.center{text-align:center}.divider{border-top:1px dashed #000;margin:8px 0}.row{display:flex;justify-content:space-between;margin:3px 0}.bold{font-weight:bold}.large{font-size:16px;font-weight:bold}.small{font-size:11px;color:#555}</style>
+      </head><body>${content}</body></html>`);
+    win.document.close(); win.focus(); win.print(); win.close();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className={`${t.surface} border ${t.border} rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]`}>
+        <div className={`flex items-center justify-between px-5 py-4 border-b ${t.border}`}>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🧾</span>
+            <p className={`text-sm font-bold ${t.text} uppercase tracking-widest`}>Receipt</p>
+          </div>
+          <button onClick={onClose} className="text-red-400 hover:text-red-500 text-lg transition">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-5">
+          <div ref={printRef}>
+            <div className="text-center mb-4">
+              <p className={`text-lg font-black ${t.text} tracking-widest`}>🏪 ANNURA STORE</p>
+              <p className={`text-xs ${t.textMuted} mt-1`}>POS System</p>
+              <p className={`text-xs ${t.textMuted}`}>{receipt.date}</p>
+              <p className={`text-xs ${t.textMuted} font-mono`}>Receipt #{receipt.id}</p>
+            </div>
+            <div className={`border-t border-dashed ${t.border} my-3`} />
+            <div className="flex flex-col gap-2 mb-3">
+              {receipt.items.map((item, i) => (
+                <div key={i} className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <p className={`text-sm font-medium ${t.text}`}>{item.name}</p>
+                    <p className={`text-xs ${t.textMuted}`}>{fmt(item.price)} × {item.qty}</p>
+                  </div>
+                  <p className={`text-sm font-mono font-bold ${t.text} shrink-0`}>{fmt(item.price * item.qty)}</p>
+                </div>
+              ))}
+            </div>
+            <div className={`border-t border-dashed ${t.border} my-3`} />
+            <div className="flex flex-col gap-1.5">
+              <div className={`flex justify-between text-sm ${t.textMuted}`}>
+                <span>Subtotal ({receipt.count} item{receipt.count !== 1 ? "s" : ""})</span>
+                <span className="font-mono">{fmt(receipt.total)}</span>
+              </div>
+              <div className={`flex justify-between text-sm ${t.textMuted}`}>
+                <span>Cash</span>
+                <span className="font-mono">{fmt(receipt.cash)}</span>
+              </div>
+              <div className={`border-t ${t.border} pt-2 mt-1 flex justify-between items-center`}>
+                <span className={`text-base font-bold ${t.text}`}>Change</span>
+                <span className="text-base font-black font-mono text-emerald-400">{fmt(receipt.change)}</span>
+              </div>
+            </div>
+            <div className={`border-t border-dashed ${t.border} my-4`} />
+            <p className={`text-center text-xs ${t.textMuted}`}>Thank you for shopping!</p>
+            <p className={`text-center text-xs ${t.textFaint} mt-1`}>— Annura Store —</p>
+          </div>
+        </div>
+        <div className={`flex gap-2 p-4 border-t ${t.border}`}>
+          <button onClick={handlePrint} className={`flex-1 ${t.btnSec} border ${t.border} py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2`}>
+            🖨️ Print
+          </button>
+          <button onClick={onClose} className={`flex-1 ${t.accentBg} ${t.accentText} py-2.5 rounded-xl text-sm font-bold transition`}>
+            Done ✓
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -524,68 +676,6 @@ function MenuTab({ items, addToast, t }) {
   );
 }
 
-// ── RECEIPT MODAL ─────────────────────────────────────────────────────────────
-function ReceiptModal({ receipt, onClose, t }) {
-  const printRef = useRef(null);
-  const handlePrint = () => {
-    const content = printRef.current.innerHTML;
-    const win = window.open("", "_blank", "width=400,height=600");
-    win.document.write(`<html><head><title>Receipt - Annura Store</title>
-      <style>body{font-family:'Courier New',monospace;padding:20px;font-size:13px;color:#000}.center{text-align:center}.divider{border-top:1px dashed #000;margin:8px 0}.row{display:flex;justify-content:space-between;margin:3px 0}.bold{font-weight:bold}.large{font-size:16px;font-weight:bold}.small{font-size:11px;color:#555}</style>
-      </head><body>${content}</body></html>`);
-    win.document.close(); win.focus(); win.print(); win.close();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className={`${t.surface} border ${t.border} rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]`}>
-        <div className={`flex items-center justify-between px-5 py-4 border-b ${t.border}`}>
-          <div className="flex items-center gap-2"><span className="text-lg">🧾</span><p className={`text-sm font-bold ${t.text} uppercase tracking-widest`}>Receipt</p></div>
-          <button onClick={onClose} className="text-red-400 hover:text-red-500 text-lg transition">✕</button>
-        </div>
-        <div className="overflow-y-auto flex-1 p-5">
-          <div ref={printRef}>
-            <div className="text-center mb-4">
-              <p className={`text-lg font-black ${t.text} tracking-widest`}>🏪 ANNURA STORE</p>
-              <p className={`text-xs ${t.textMuted} mt-1`}>POS System</p>
-              <p className={`text-xs ${t.textMuted}`}>{receipt.date}</p>
-              <p className={`text-xs ${t.textMuted} font-mono`}>Receipt #{receipt.id}</p>
-            </div>
-            <div className={`border-t border-dashed ${t.border} my-3`} />
-            <div className="flex flex-col gap-2 mb-3">
-              {receipt.items.map((item, i) => (
-                <div key={i} className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <p className={`text-sm font-medium ${t.text}`}>{item.name}</p>
-                    <p className={`text-xs ${t.textMuted}`}>{fmt(item.price)} × {item.qty}</p>
-                  </div>
-                  <p className={`text-sm font-mono font-bold ${t.text} shrink-0`}>{fmt(item.price * item.qty)}</p>
-                </div>
-              ))}
-            </div>
-            <div className={`border-t border-dashed ${t.border} my-3`} />
-            <div className="flex flex-col gap-1.5">
-              <div className={`flex justify-between text-sm ${t.textMuted}`}><span>Subtotal ({receipt.count} item{receipt.count !== 1 ? "s" : ""})</span><span className="font-mono">{fmt(receipt.total)}</span></div>
-              <div className={`flex justify-between text-sm ${t.textMuted}`}><span>Cash</span><span className="font-mono">{fmt(receipt.cash)}</span></div>
-              <div className={`border-t ${t.border} pt-2 mt-1 flex justify-between items-center`}>
-                <span className={`text-base font-bold ${t.text}`}>Change</span>
-                <span className="text-base font-black font-mono text-emerald-400">{fmt(receipt.change)}</span>
-              </div>
-            </div>
-            <div className={`border-t border-dashed ${t.border} my-4`} />
-            <p className={`text-center text-xs ${t.textMuted}`}>Thank you for shopping!</p>
-            <p className={`text-center text-xs ${t.textFaint} mt-1`}>— Annura Store —</p>
-          </div>
-        </div>
-        <div className={`flex gap-2 p-4 border-t ${t.border}`}>
-          <button onClick={handlePrint} className={`flex-1 ${t.btnSec} border ${t.border} py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2`}>🖨️ Print</button>
-          <button onClick={onClose} className={`flex-1 ${t.accentBg} ${t.accentText} py-2.5 rounded-xl text-sm font-bold transition`}>Done ✓</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── POS TAB ───────────────────────────────────────────────────────────────────
 function PosTab({ items, addToast, addTransaction, t }) {
   const [receipt, setReceipt] = useState(null);
@@ -653,7 +743,7 @@ function PosTab({ items, addToast, addTransaction, t }) {
     const now = new Date();
     const receiptId = uid().slice(-6).toUpperCase();
     const receiptDate = now.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
-    const receiptData = { id: receiptId, date: receiptDate, items: [...cart], total, count, cash: cashNum, change };
+    const receiptData = { id: receiptId, date: receiptDate, items: [...cart], total, count, cash: cashNum, change, ts: now.getTime() };
     setReceipt(receiptData);
     addTransaction(receiptData);
     setCart([]);
@@ -716,7 +806,11 @@ function PosTab({ items, addToast, addTransaction, t }) {
                 <p className={`text-xs ${t.textMuted} uppercase tracking-widest`}>Cart</p>
                 {count > 0 && <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-semibold ${t.badge}`}>{count}</span>}
               </div>
-              {cart.length > 0 && <button onClick={() => { if (window.confirm("Clear cart?")) setCart([]); }} className="text-xs text-red-400 hover:text-red-500 transition">Clear all</button>}
+              {cart.length > 0 && (
+                <button onClick={() => { if (window.confirm("Clear cart?")) setCart([]); }} className="text-xs text-red-400 hover:text-red-500 transition">
+                  Clear all
+                </button>
+              )}
             </div>
             <div className="flex flex-col gap-2 max-h-80 overflow-y-auto scrollbar-thin">
               {!cart.length ? (
@@ -728,7 +822,9 @@ function PosTab({ items, addToast, addTransaction, t }) {
                 <div key={c.id} className={`${t.card} border ${t.border} rounded-xl flex items-center gap-3 px-3 py-2.5`}>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium ${t.text} truncate`}>{c.name}</p>
-                    <p className={`text-xs ${t.textMuted} mt-0.5`}>{fmt(c.price)} × {c.qty} = <span className={`font-mono font-semibold ${t.accent}`}>{fmt(c.price * c.qty)}</span></p>
+                    <p className={`text-xs ${t.textMuted} mt-0.5`}>
+                      {fmt(c.price)} × {c.qty} = <span className={`font-mono font-semibold ${t.accent}`}>{fmt(c.price * c.qty)}</span>
+                    </p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button onClick={() => changeQty(c.id, -1)} className={`${t.btnSec} w-7 h-7 rounded-lg flex items-center justify-center text-sm transition`}>−</button>
@@ -744,7 +840,10 @@ function PosTab({ items, addToast, addTransaction, t }) {
 
         <div className="lg:col-span-2 flex flex-col gap-3">
           <div className={`${t.surface} border ${t.border} rounded-2xl p-5 flex flex-col gap-4 shadow-sm`}>
-            <div className={`flex justify-between text-sm ${t.textMuted}`}><span>Items</span><span className="font-mono font-semibold">{count}</span></div>
+            <div className={`flex justify-between text-sm ${t.textMuted}`}>
+              <span>Items</span>
+              <span className="font-mono font-semibold">{count}</span>
+            </div>
             <div className={`border-t ${t.border} pt-3 flex justify-between items-center`}>
               <span className={`text-base font-semibold ${t.textMuted}`}>Total</span>
               <span className={`text-2xl font-black font-mono ${t.accent}`}>{fmt(total)}</span>
@@ -782,14 +881,13 @@ function PosTab({ items, addToast, addTransaction, t }) {
 }
 
 // ── INVENTORY TAB ─────────────────────────────────────────────────────────────
-function InventoryTab({ items, setItems, transactions, addToast, t }) {
+function InventoryTab({ items, setItems, addToast, t }) {
   const [form, setForm] = useState({ name: "", price: "", barcode: "", category: "" });
   const [editingId, setEditingId] = useState(null);
   const [invSearch, setInvSearch] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
 
   const allCategories = Array.from(new Set([
     ...DEFAULT_CATEGORIES,
@@ -798,9 +896,9 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
 
   const filtered = invSearch.trim()
     ? items.filter((i) =>
-      i.name.toLowerCase().includes(invSearch.toLowerCase()) ||
-      (i.barcode || "").toLowerCase().includes(invSearch.toLowerCase()) ||
-      (i.category || "").toLowerCase().includes(invSearch.toLowerCase()))
+        i.name.toLowerCase().includes(invSearch.toLowerCase()) ||
+        (i.barcode || "").toLowerCase().includes(invSearch.toLowerCase()) ||
+        (i.category || "").toLowerCase().includes(invSearch.toLowerCase()))
     : [...items];
 
   const saveItem = async () => {
@@ -810,25 +908,14 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
     setError(""); setSaving(true);
     try {
       if (editingId) {
-        const dupName = items.find(
-          (i) => i.id !== editingId && i.name.toLowerCase() === name.trim().toLowerCase()
-        );
+        const dupName = items.find((i) => i.id !== editingId && i.name.toLowerCase() === name.trim().toLowerCase());
         if (dupName) { setError("Another item with that name already exists."); setSaving(false); return; }
-
         const trimmedBarcode = barcode.trim();
         if (trimmedBarcode) {
-          const dupBarcode = items.find(
-            (i) => i.id !== editingId && i.barcode && i.barcode === trimmedBarcode
-          );
+          const dupBarcode = items.find((i) => i.id !== editingId && i.barcode && i.barcode === trimmedBarcode);
           if (dupBarcode) { setError(`Barcode already used by "${dupBarcode.name}".`); setSaving(false); return; }
         }
-
-        const payload = {
-          name: name.trim(),
-          price: parseFloat(price),
-          barcode: trimmedBarcode || null,
-          category: category.trim() || null,
-        };
+        const payload = { name: name.trim(), price: parseFloat(price), barcode: trimmedBarcode || null, category: category.trim() || null };
         const { error: sbErr } = await supabase.from("items").update(payload).eq("id", editingId);
         if (sbErr) throw sbErr;
         setItems((prev) => prev.map((i) => i.id === editingId ? { ...i, ...payload } : i));
@@ -837,22 +924,12 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
         if (items.find((i) => i.name.toLowerCase() === name.trim().toLowerCase())) {
           setError("An item with that name already exists."); setSaving(false); return;
         }
-
         const trimmedBarcode = barcode.trim();
         if (trimmedBarcode) {
           const dupBarcode = items.find((i) => i.barcode && i.barcode === trimmedBarcode);
-          if (dupBarcode) {
-            setError(`Barcode already used by "${dupBarcode.name}".`); setSaving(false); return;
-          }
+          if (dupBarcode) { setError(`Barcode already used by "${dupBarcode.name}".`); setSaving(false); return; }
         }
-
-        const newItem = {
-          id: uid(),
-          name: name.trim(),
-          price: parseFloat(price),
-          barcode: trimmedBarcode || null,
-          category: category.trim() || null,
-        };
+        const newItem = { id: uid(), name: name.trim(), price: parseFloat(price), barcode: trimmedBarcode || null, category: category.trim() || null };
         const { error: sbErr } = await supabase.from("items").insert([newItem]);
         if (sbErr) throw sbErr;
         setItems((prev) => [...prev, newItem]);
@@ -881,57 +958,10 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
   };
 
   const cancelEdit = () => { setEditingId(null); setForm({ name: "", price: "", barcode: "", category: "" }); setError(""); };
-
   const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      {/* ── TRANSACTION HISTORY ── */}
-      <div className={`${t.surface} border ${t.border} rounded-2xl mb-4 overflow-hidden shadow-sm`}>
-        <button onClick={() => setHistoryOpen(v => !v)}
-          className={`w-full flex items-center justify-between px-5 py-4 ${t.hover} transition`}>
-          <div className="flex items-center gap-2">
-            <span>🧾</span>
-            <p className={`text-xs ${t.textMuted} uppercase tracking-widest font-semibold`}>Transaction History</p>
-            {transactions.length > 0 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-semibold ${t.badge}`}>{transactions.length}</span>
-            )}
-          </div>
-          <span className={`${t.textMuted} text-xs transition-transform ${historyOpen ? "rotate-180" : ""}`}>▼</span>
-        </button>
-        {historyOpen && (
-          <div className={`border-t ${t.border}`}>
-            {!transactions.length ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <span className="text-3xl opacity-10">🧾</span>
-                <p className={`${t.textFaint} text-sm`}>No transactions yet.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col divide-y max-h-80 overflow-y-auto scrollbar-thin">
-                {[...transactions].reverse().map((tx) => (
-                  <div key={tx.id} className={`px-5 py-4 ${t.hover} transition`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-xs font-mono ${t.textMuted}`}>#{tx.id}</span>
-                      <span className={`font-mono text-sm font-black ${t.accent}`}>{fmt(tx.total)}</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {tx.items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between">
-                          <span className={`text-sm ${t.text}`}>{item.name} <span className={`text-xs ${t.textMuted}`}>× {item.qty}</span></span>
-                          <span className={`text-xs font-mono ${t.textMuted}`}>{fmt(item.price * item.qty)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className={`text-[11px] ${t.textFaint} mt-2`}>{tx.date}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── ADD/EDIT FORM ── */}
       <div className={`${t.surface} border ${t.border} rounded-2xl p-5 mb-4 shadow-sm`}>
         <div className="flex items-center gap-2 mb-4">
           <span className="text-base">{editingId ? "✏️" : "➕"}</span>
@@ -960,12 +990,7 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
           </div>
           <div>
             <label className={`text-xs ${t.textMuted} mb-1.5 block font-medium`}>Category <span className={t.textFaint}>(optional)</span></label>
-            <CategoryComboBox
-              value={form.category}
-              onChange={(val) => setForm(f => ({ ...f, category: val }))}
-              allCategories={allCategories}
-              t={t}
-            />
+            <CategoryComboBox value={form.category} onChange={(val) => setForm(f => ({ ...f, category: val }))} allCategories={allCategories} t={t} />
           </div>
         </div>
         {scannerOpen && (
@@ -989,7 +1014,6 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
         </div>
       </div>
 
-      {/* ── SEARCH ── */}
       <div className={`${t.surface} border ${t.border} rounded-2xl px-4 py-2.5 mb-3 flex items-center gap-3 shadow-sm`}>
         <span className={`${t.textFaint} text-sm`}>🔍</span>
         <input className={`flex-1 bg-transparent ${t.text} text-base outline-none placeholder:opacity-30`}
@@ -999,7 +1023,6 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
         <span className={`text-xs ${t.textMuted} font-mono ${t.badge} px-2 py-0.5 rounded-full`}>{filtered.length}/{items.length}</span>
       </div>
 
-      {/* ── TABLE ── */}
       <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden shadow-sm`}>
         <div className={`grid grid-cols-12 text-xs ${t.textMuted} uppercase tracking-widest px-4 py-3 border-b ${t.border} ${t.tblHead} font-semibold`}>
           <div className="col-span-4">Name</div>
@@ -1032,14 +1055,418 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
   );
 }
 
+// ── REPORTS TAB ───────────────────────────────────────────────────────────────
+function ReportsTab({ transactions, t }) {
+  const [period, setPeriod] = useState("daily");
+  const now = new Date();
+
+  const filterTx = (txs) => {
+    return txs.filter(tx => {
+      const d = new Date(tx.ts || 0);
+      if (period === "daily") return d.toDateString() === now.toDateString();
+      if (period === "weekly") {
+        const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+        return d >= weekAgo;
+      }
+      if (period === "monthly") return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      return true;
+    });
+  };
+
+  const filtered = filterTx(transactions);
+  const totalSales = filtered.reduce((s, tx) => s + tx.total, 0);
+  const totalTx = filtered.length;
+  const avgOrder = totalTx > 0 ? totalSales / totalTx : 0;
+
+  const itemMap = {};
+  filtered.forEach(tx => tx.items.forEach(item => {
+    if (!itemMap[item.name]) itemMap[item.name] = { name: item.name, qty: 0, revenue: 0 };
+    itemMap[item.name].qty += item.qty;
+    itemMap[item.name].revenue += item.price * item.qty;
+  }));
+  const topItems = Object.values(itemMap).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+
+  const periods = [
+    { id: "daily", label: "Today" },
+    { id: "weekly", label: "This Week" },
+    { id: "monthly", label: "This Month" },
+  ];
+
+  return (
+    <div className="p-4 max-w-3xl mx-auto">
+      <div className="flex gap-2 mb-4">
+        {periods.map(p => (
+          <button key={p.id} onClick={() => setPeriod(p.id)}
+            className={`flex-1 py-2 rounded-xl text-xs font-semibold uppercase tracking-widest border transition
+              ${period === p.id ? `${t.accentBg} ${t.accentText} border-transparent` : `${t.surface} ${t.border} ${t.textMuted}`}`}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {[
+          { label: "Total Sales", value: fmt(totalSales), icon: "💰" },
+          { label: "Transactions", value: totalTx, icon: "🧾" },
+          { label: "Avg. Order", value: fmt(avgOrder), icon: "📊" },
+        ].map(({ label, value, icon }) => (
+          <div key={label} className={`${t.surface} border ${t.border} rounded-2xl p-4 text-center shadow-sm`}>
+            <p className="text-xl mb-1">{icon}</p>
+            <p className={`text-lg font-black font-mono ${t.accent}`}>{value}</p>
+            <p className={`text-[10px] uppercase tracking-widest ${t.textMuted} mt-1`}>{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden shadow-sm mb-4`}>
+        <div className={`px-5 py-3 border-b ${t.border} flex items-center gap-2`}>
+          <span>🏆</span>
+          <p className={`text-xs ${t.textMuted} uppercase tracking-widest font-semibold`}>Top Selling Items</p>
+        </div>
+        {!topItems.length ? (
+          <div className="py-10 text-center">
+            <p className={`${t.textFaint} text-sm`}>No sales data for this period.</p>
+          </div>
+        ) : (
+          <div className={`divide-y ${t.divide}`}>
+            {topItems.map((item, i) => (
+              <div key={item.name} className={`flex items-center justify-between px-5 py-3 ${t.rowHov} transition`}>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-bold w-5 text-center ${t.textMuted}`}>#{i + 1}</span>
+                  <div>
+                    <p className={`text-sm font-semibold ${t.text}`}>{item.name}</p>
+                    <p className={`text-xs ${t.textMuted}`}>{item.qty} sold</p>
+                  </div>
+                </div>
+                <span className={`font-mono text-sm font-bold ${t.accent}`}>{fmt(item.revenue)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden shadow-sm`}>
+        <div className={`px-5 py-3 border-b ${t.border} flex items-center gap-2`}>
+          <span>🧾</span>
+          <p className={`text-xs ${t.textMuted} uppercase tracking-widest font-semibold`}>Transactions ({filtered.length})</p>
+        </div>
+        {!filtered.length ? (
+          <div className="py-10 text-center">
+            <p className={`${t.textFaint} text-sm`}>No transactions this period.</p>
+          </div>
+        ) : (
+          <div className={`divide-y ${t.divide} max-h-64 overflow-y-auto scrollbar-thin`}>
+            {[...filtered].reverse().map(tx => (
+              <div key={tx.id} className={`px-5 py-3 flex items-center justify-between ${t.rowHov} transition`}>
+                <div>
+                  <p className={`text-xs font-mono ${t.textMuted}`}>#{tx.id}</p>
+                  <p className={`text-xs ${t.textFaint} mt-0.5`}>{tx.date}</p>
+                </div>
+                <span className={`font-mono font-bold ${t.accent} text-sm`}>{fmt(tx.total)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── SETTINGS PANEL ────────────────────────────────────────────────────────────
+function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, setTransactions, items }) {
+  const [section, setSection] = useState(null);
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [printerIp, setPrinterIp] = useState(() => {
+    try { return localStorage.getItem("annura_printer_ip") || ""; } catch { return ""; }
+  });
+  const [showChangePinSuccess, setShowChangePinSuccess] = useState(false);
+
+  const changePin = () => {
+    if (newPin.length < 4) { addToast("PIN must be at least 4 digits.", "error"); return; }
+    if (!/^\d+$/.test(newPin)) { addToast("PIN must be numbers only.", "error"); return; }
+    if (newPin !== confirmPin) { addToast("PINs do not match.", "error"); return; }
+    localStorage.setItem("annura_pin", newPin);
+    setNewPin(""); setConfirmPin("");
+    setShowChangePinSuccess(true);
+    addToast("PIN changed successfully!", "success");
+    setTimeout(() => setShowChangePinSuccess(false), 3000);
+  };
+
+  const backupData = () => {
+    const backup = { items, transactions, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `annura_backup_${new Date().toISOString().split("T")[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast("Backup downloaded!", "success");
+  };
+
+  const restoreData = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.transactions) {
+          setTransactions(data.transactions);
+          localStorage.setItem("annura_transactions", JSON.stringify(data.transactions));
+          addToast("Transactions restored!", "success");
+        }
+      } catch { addToast("Invalid backup file.", "error"); }
+    };
+    reader.readAsText(file);
+  };
+
+  const savePrinter = () => {
+    localStorage.setItem("annura_printer_ip", printerIp);
+    addToast("Printer IP saved!", "success");
+  };
+
+  const menuItems = [
+    { id: "pin", icon: "🔑", label: "Change PIN" },
+    { id: "printer", icon: "🖨️", label: "Printer Setup" },
+    { id: "backup", icon: "💾", label: "Backup & Restore" },
+    { id: "appearance", icon: "🎨", label: "Appearance" },
+    { id: "help", icon: "❓", label: "Help" },
+  ];
+
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
+
+  return (
+    <div className="p-4 max-w-2xl mx-auto">
+      {!section ? (
+        <>
+          <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden shadow-sm mb-4`}>
+            {menuItems.map((item) => (
+              <button key={item.id} onClick={() => setSection(item.id)}
+                className={`w-full flex items-center gap-4 px-5 py-4 ${t.hover} transition border-b ${t.border} last:border-b-0`}>
+                <span className="text-xl">{item.icon}</span>
+                <span className={`flex-1 text-sm font-semibold ${t.text} text-left`}>{item.label}</span>
+                <span className={`${t.textMuted} text-sm`}>›</span>
+              </button>
+            ))}
+          </div>
+
+          <button onClick={() => { if (window.confirm("Log out?")) onLogout(); }}
+            className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition">
+            <span className="text-xl">🚪</span>
+            <span className="flex-1 text-sm font-semibold text-red-400 text-left">Log Out</span>
+          </button>
+        </>
+      ) : (
+        <>
+          <button onClick={() => setSection(null)}
+            className={`flex items-center gap-2 mb-4 ${t.textMuted} transition text-sm`}>
+            ‹ Back to Settings
+          </button>
+
+          {section === "pin" && (
+            <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm`}>
+              <p className={`text-sm font-bold ${t.text} mb-4`}>🔑 Change PIN</p>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className={`text-xs ${t.textMuted} mb-1.5 block`}>New PIN (numbers only)</label>
+                  <input type="password" inputMode="numeric" pattern="[0-9]*" className={inputCls}
+                    placeholder="Enter new PIN" value={newPin} onChange={e => setNewPin(e.target.value)} />
+                </div>
+                <div>
+                  <label className={`text-xs ${t.textMuted} mb-1.5 block`}>Confirm PIN</label>
+                  <input type="password" inputMode="numeric" pattern="[0-9]*" className={inputCls}
+                    placeholder="Confirm new PIN" value={confirmPin} onChange={e => setConfirmPin(e.target.value)} />
+                </div>
+                {showChangePinSuccess && <p className="text-emerald-400 text-xs">✓ PIN changed successfully!</p>}
+                <button onClick={changePin} className={`${t.accentBg} ${t.accentText} py-2.5 rounded-xl font-semibold text-sm`}>
+                  Update PIN
+                </button>
+              </div>
+            </div>
+          )}
+
+          {section === "printer" && (
+            <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm`}>
+              <p className={`text-sm font-bold ${t.text} mb-4`}>🖨️ Printer Setup</p>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className={`text-xs ${t.textMuted} mb-1.5 block`}>Printer IP Address</label>
+                  <input className={inputCls} placeholder="e.g. 192.168.1.100"
+                    value={printerIp} onChange={e => setPrinterIp(e.target.value)} />
+                </div>
+                <p className={`text-xs ${t.textMuted}`}>Enter the local network IP address of your receipt printer.</p>
+                <button onClick={savePrinter} className={`${t.accentBg} ${t.accentText} py-2.5 rounded-xl font-semibold text-sm`}>
+                  Save Printer
+                </button>
+              </div>
+            </div>
+          )}
+
+          {section === "backup" && (
+            <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm flex flex-col gap-4`}>
+              <p className={`text-sm font-bold ${t.text}`}>💾 Backup & Restore</p>
+              <div>
+                <p className={`text-xs ${t.textMuted} mb-2`}>Export all transaction data as a JSON file.</p>
+                <button onClick={backupData} className={`${t.accentBg} ${t.accentText} py-2.5 px-5 rounded-xl font-semibold text-sm`}>
+                  ⬇ Download Backup
+                </button>
+              </div>
+              <div className={`border-t ${t.border} pt-4`}>
+                <p className={`text-xs ${t.textMuted} mb-2`}>Restore transactions from a backup file.</p>
+                <label className={`${t.btnSec} border ${t.border} py-2.5 px-5 rounded-xl font-semibold text-sm cursor-pointer inline-block`}>
+                  ⬆ Upload Backup
+                  <input type="file" accept=".json" className="hidden" onChange={restoreData} />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {section === "appearance" && (
+            <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm`}>
+              <p className={`text-sm font-bold ${t.text} mb-4`}>🎨 Appearance</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm font-semibold ${t.text}`}>Dark Mode</p>
+                  <p className={`text-xs ${t.textMuted} mt-0.5`}>Switch between dark and light theme</p>
+                </div>
+                <button onClick={() => setDark(d => !d)}
+                  className={`w-14 h-7 rounded-full transition-all relative ${dark ? "bg-[#7c3aed]" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all ${dark ? "left-7" : "left-0.5"}`} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {section === "help" && (
+            <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm flex flex-col gap-3`}>
+              <p className={`text-sm font-bold ${t.text}`}>❓ Help</p>
+              {[
+                { q: "How do I add items?", a: "Go to Inventory tab → fill in the form → tap Save Item." },
+                { q: "How does barcode scanning work?", a: "Tap the 📷 button in POS or Inventory to open the camera scanner." },
+                { q: "How do I change my PIN?", a: "Settings → Change PIN → enter and confirm your new PIN." },
+                { q: "Where is my data stored?", a: "Items are stored in Supabase (cloud). Transactions are stored locally and can be backed up." },
+              ].map(({ q, a }) => (
+                <div key={q} className={`${t.card} border ${t.border} rounded-xl p-4`}>
+                  <p className={`text-sm font-semibold ${t.text} mb-1`}>{q}</p>
+                  <p className={`text-xs ${t.textMuted}`}>{a}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── NAV DRAWER ────────────────────────────────────────────────────────────────
+function NavDrawer({ open, onClose, tab, setTab, dark, setDark, onLogout, t }) {
+  const tabs = [
+    { id: "pos",       icon: "🛒", label: "Cashier"   },
+    { id: "menu",      icon: "📋", label: "Menu"      },
+    { id: "inventory", icon: "📦", label: "Inventory" },
+    { id: "reports",   icon: "📊", label: "Reports"   },
+    { id: "settings",  icon: "⚙️", label: "Settings"  },
+  ];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300
+          ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <div
+        className={`fixed top-0 left-0 bottom-0 z-50 w-72 ${t.drawerBg} border-r ${t.border} flex flex-col
+          transition-transform duration-300 ease-in-out
+          ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        {/* Profile / store header */}
+        <div className={`p-5 pt-8 border-b ${t.border}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${t.card} border ${t.border}`}>
+              🏪
+            </div>
+            <button
+              onClick={onClose}
+              className={`w-8 h-8 rounded-xl ${t.card} border ${t.border} flex items-center justify-center ${t.textMuted} text-sm transition ${t.hover}`}>
+              ✕
+            </button>
+          </div>
+          <p className={`text-sm font-bold ${t.text} tracking-wide`}>Annura Store</p>
+          <p className={`text-xs ${t.textMuted} mt-0.5`}>POS System</p>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 p-3 overflow-y-auto flex flex-col gap-1">
+          <p className={`text-[10px] uppercase tracking-[0.2em] font-bold ${t.textFaint} px-3 py-2`}>Navigation</p>
+          {tabs.map(({ id, icon, label }) => (
+            <button
+              key={id}
+              onClick={() => { setTab(id); onClose(); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all
+                ${tab === id
+                  ? `${t.accentBg} text-white shadow-sm`
+                  : `${t.textMuted} ${t.hover}`}`}
+            >
+              <span className="text-base w-6 text-center">{icon}</span>
+              <span className="flex-1">{label}</span>
+              {tab === id && (
+                <span className="w-1.5 h-1.5 rounded-full bg-white/70 shrink-0" />
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div className={`p-3 border-t ${t.border} flex flex-col gap-1`}>
+          {/* Dark mode toggle row */}
+          <button
+            onClick={() => setDark(d => !d)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${t.textMuted} ${t.hover}`}
+          >
+            <span className="text-base w-6 text-center">{dark ? "☀" : "☽"}</span>
+            <span className="flex-1">{dark ? "Light Mode" : "Dark Mode"}</span>
+            <span className={`w-8 h-4 rounded-full transition-all relative ${dark ? "bg-[#7c3aed]" : "bg-gray-400"}`}>
+              <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${dark ? "left-4" : "left-0.5"}`} />
+            </span>
+          </button>
+
+          {/* Logout */}
+          <button
+            onClick={() => {
+              onClose();
+              if (window.confirm("Log out?")) onLogout();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition text-left"
+          >
+            <span className="text-base w-6 text-center">🚪</span>
+            Log Out
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("home");
   const [tab, setTab] = useState("pos");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [locked, setLocked] = useState(() => {
+    try { return localStorage.getItem("annura_locked") !== "false"; } catch { return true; }
+  });
   const [dark, setDark] = useState(() => {
-    const saved = localStorage.getItem("annura_theme");
-    if (saved) return saved === "dark";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    try {
+      const saved = localStorage.getItem("annura_theme");
+      if (saved) return saved === "dark";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    } catch { return true; }
   });
   const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -1074,23 +1501,35 @@ export default function App() {
       });
   }, []);
 
-  useEffect(() => { localStorage.setItem("annura_theme", dark ? "dark" : "light"); }, [dark]);
+  useEffect(() => {
+    try { localStorage.setItem("annura_theme", dark ? "dark" : "light"); } catch {}
+  }, [dark]);
 
-  if (page === "home") return (
-    <>
-      <HomePage onEnter={() => setPage("app")} dark={dark} setDark={setDark} />
-      <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
-    </>
-  );
+  // Home page
+  if (page === "home") {
+    return (
+      <>
+        <HomePage onEnter={() => setPage("app")} dark={dark} setDark={setDark} />
+        <style>{`@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}`}</style>
+      </>
+    );
+  }
 
-  const tabs = [
-    { id: "pos", icon: "🛒", label: "Cashier" },
-    { id: "menu", icon: "📋", label: "Menu" },
-    { id: "inventory", icon: "📦", label: "Inventory" },
-  ];
+  // PIN lock screen
+  if (locked) {
+    return <PinScreen onUnlock={() => setLocked(false)} />;
+  }
+
+  const tabLabels = {
+    pos: "Cashier",
+    menu: "Menu",
+    inventory: "Inventory",
+    reports: "Reports",
+    settings: "Settings",
+  };
 
   return (
-    <div className={`min-h-screen ${t.bg} ${t.text} transition-colors duration-300 pb-20`}>
+    <div className={`min-h-screen ${t.bg} ${t.text} transition-colors duration-300`}>
       <style>{`
         @keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}
         .scrollbar-thin::-webkit-scrollbar{width:4px}
@@ -1101,45 +1540,71 @@ export default function App() {
       `}</style>
 
       {/* Header */}
-      <div className={`flex items-center justify-between px-5 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-40`}>
-        <button onClick={() => setPage("home")} className="flex items-center gap-2.5">
-          <span className="text-xl">🏪</span>
-          <div>
-            <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>ANNURA STORE</p>
-            <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>POS System</p>
-          </div>
-        </button>
-        <button onClick={() => setDark((d) => !d)}
-          className={`w-8 h-8 rounded-xl border ${t.border} ${t.card} flex items-center justify-center text-sm transition-all ${t.hover}`}>
-          {dark ? "☀" : "☽"}
-        </button>
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-30`}>
+        <div className="flex items-center gap-3">
+          {/* Hamburger */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className={`w-9 h-9 rounded-xl border ${t.border} ${t.card} flex flex-col items-center justify-center gap-[4px] transition ${t.hover}`}
+            aria-label="Open menu"
+          >
+            <HamburgerIcon dark={dark} />
+          </button>
+
+          {/* Store name / back to home */}
+          <button onClick={() => setPage("home")} className="flex items-center gap-2">
+            <span className="text-xl">🏪</span>
+            <div>
+              <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>ANNURA STORE</p>
+              <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>
+                {tabLabels[tab]}
+              </p>
+            </div>
+          </button>
+        </div>
+
+        {/* Right side: current tab badge */}
+        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${t.badge}`}>
+          {tabLabels[tab]}
+        </div>
       </div>
 
+      {/* Drawer */}
+      <NavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        tab={tab}
+        setTab={setTab}
+        dark={dark}
+        setDark={setDark}
+        onLogout={() => { setLocked(true); try { localStorage.setItem("annura_locked", "true"); } catch {} }}
+        t={t}
+      />
+
+      {/* Page content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
           <div className="w-8 h-8 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
           <p className={`text-sm ${t.textMuted} font-mono tracking-widest`}>Loading…</p>
         </div>
       ) : (
-        <>
+        <div className="pb-8">
           {tab === "pos" && <PosTab items={items} addToast={addToast} addTransaction={addTransaction} t={t} />}
           {tab === "menu" && <MenuTab items={items} addToast={addToast} t={t} />}
-          {tab === "inventory" && <InventoryTab items={items} setItems={setItems} transactions={transactions} addToast={addToast} t={t} />}
-        </>
+          {tab === "inventory" && <InventoryTab items={items} setItems={setItems} addToast={addToast} t={t} />}
+          {tab === "reports" && <ReportsTab transactions={transactions} t={t} />}
+          {tab === "settings" && (
+            <SettingsPanel
+              t={t} dark={dark} setDark={setDark}
+              onLogout={() => { setLocked(true); try { localStorage.setItem("annura_locked", "true"); } catch {} }}
+              addToast={addToast}
+              transactions={transactions}
+              setTransactions={setTransactions}
+              items={items}
+            />
+          )}
+        </div>
       )}
-
-      {/* Bottom tab bar */}
-      <div className={`fixed bottom-0 left-0 right-0 z-40 flex border-t ${t.border} ${t.headerBg} backdrop-blur-md`}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-        {tabs.map(({ id, icon, label }) => (
-          <button key={id} onClick={() => setTab(id)}
-            className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 transition-all
-              ${tab === id ? t.accent : t.textMuted}`}>
-            <span className="text-xl leading-none">{icon}</span>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${tab === id ? "" : "opacity-60"}`}>{label}</span>
-          </button>
-        ))}
-      </div>
 
       <Toast toasts={toasts} />
     </div>
