@@ -46,56 +46,55 @@ const DEFAULT_CATEGORIES = [
   "Produce", "Meat & Seafood", "Rice & Grains", "Sweets & Candy", "Tobacco",
 ];
 
-// ── UNIFIED BLUE THEME ────────────────────────────────────────────────────────
-// dark = deep navy blues  |  light = soft sky blues
+// ── UNIFIED PURPLE THEME ──────────────────────────────────────────────────────
 const T = {
   dark: {
-    bg: "bg-[#0d1b2e]",
-    surface: "bg-[#132238]",
-    card: "bg-[#1a2f47]",
-    input: "bg-[#0d1b2e]",
-    border: "border-[#1e3550]",
-    divide: "divide-[#1e3550]",
-    text: "text-[#e8f0fe]",
-    textMuted: "text-[#7a9cc0]",
-    textFaint: "text-[#2a4a6b]",
-    hover: "hover:bg-[#1a2f47]",
-    accent: "text-[#60a5fa]",
-    accentBg: "bg-[#2563eb]",
+    bg: "bg-[#0e0720]",
+    surface: "bg-[#180d35]",
+    card: "bg-[#22104a]",
+    input: "bg-[#0e0720]",
+    border: "border-[#2e1660]",
+    divide: "divide-[#2e1660]",
+    text: "text-[#ede0ff]",
+    textMuted: "text-[#9b72cc]",
+    textFaint: "text-[#3a1e70]",
+    hover: "hover:bg-[#22104a]",
+    accent: "text-[#b388ff]",
+    accentBg: "bg-[#7c3aed]",
     accentText: "text-white",
-    accentHov: "hover:bg-[#1d4ed8]",
-    btnSec: "bg-[#1a2f47] hover:bg-[#223a57] text-[#e8f0fe]",
-    tblHead: "bg-[#0d1b2e]",
-    rowHov: "hover:bg-[#1a2f47]",
-    suggestion: "bg-[#132238] hover:bg-[#1a2f47]",
-    headerBg: "bg-[#0d1b2e]/95",
-    badge: "bg-[#1a2f47] text-[#7a9cc0]",
-    tabActive: "bg-[#2563eb] text-white",
-    tabInactive: "text-[#4a7aa0] hover:text-[#7a9cc0]",
+    accentHov: "hover:bg-[#6d28d9]",
+    btnSec: "bg-[#22104a] hover:bg-[#2d1660] text-[#ede0ff]",
+    tblHead: "bg-[#0e0720]",
+    rowHov: "hover:bg-[#22104a]",
+    suggestion: "bg-[#180d35] hover:bg-[#22104a]",
+    headerBg: "bg-[#0e0720]/95",
+    badge: "bg-[#22104a] text-[#9b72cc]",
+    tabActive: "bg-[#7c3aed] text-white",
+    tabInactive: "text-[#5b3a8a] hover:text-[#9b72cc]",
   },
   light: {
-    bg: "bg-[#e8f2fc]",
+    bg: "bg-[#f0ebff]",
     surface: "bg-[#ffffff]",
-    card: "bg-[#ddeef9]",
-    input: "bg-[#eaf3fb]",
-    border: "border-[#b8d4ee]",
-    divide: "divide-[#cce0f5]",
-    text: "text-[#0d2a4a]",
-    textMuted: "text-[#4a7aa0]",
-    textFaint: "text-[#a8c8e8]",
-    hover: "hover:bg-[#ddeef9]",
-    accent: "text-[#1d4ed8]",
-    accentBg: "bg-[#2563eb]",
+    card: "bg-[#e8dfff]",
+    input: "bg-[#f3eeff]",
+    border: "border-[#c9b3f0]",
+    divide: "divide-[#ddd0f8]",
+    text: "text-[#1a0a3e]",
+    textMuted: "text-[#6b3fa8]",
+    textFaint: "text-[#c4aae8]",
+    hover: "hover:bg-[#e8dfff]",
+    accent: "text-[#6d28d9]",
+    accentBg: "bg-[#7c3aed]",
     accentText: "text-white",
-    accentHov: "hover:bg-[#1d4ed8]",
-    btnSec: "bg-[#ddeef9] hover:bg-[#cce0f5] text-[#0d2a4a]",
-    tblHead: "bg-[#eaf3fb]",
-    rowHov: "hover:bg-[#f0f8ff]",
-    suggestion: "bg-white hover:bg-[#eaf3fb]",
-    headerBg: "bg-[#e8f2fc]/95",
-    badge: "bg-[#ddeef9] text-[#4a7aa0]",
-    tabActive: "bg-[#2563eb] text-white",
-    tabInactive: "text-[#7aaac8] hover:text-[#4a7aa0]",
+    accentHov: "hover:bg-[#6d28d9]",
+    btnSec: "bg-[#e8dfff] hover:bg-[#ddd0f8] text-[#1a0a3e]",
+    tblHead: "bg-[#f3eeff]",
+    rowHov: "hover:bg-[#f8f4ff]",
+    suggestion: "bg-white hover:bg-[#f3eeff]",
+    headerBg: "bg-[#f0ebff]/95",
+    badge: "bg-[#e8dfff] text-[#6b3fa8]",
+    tabActive: "bg-[#7c3aed] text-white",
+    tabInactive: "text-[#b09ad0] hover:text-[#6b3fa8]",
   },
 };
 
@@ -105,9 +104,9 @@ function Toast({ toasts }) {
     <div className="fixed bottom-20 right-4 z-50 flex flex-col gap-2 pointer-events-none">
       {toasts.map((t) => (
         <div key={t.id} className={`px-4 py-3 rounded-xl text-sm font-medium shadow-2xl pointer-events-auto
-          ${t.type === "success" ? "bg-[#132238] text-[#60a5fa] border border-[#1e3550]" : ""}
+          ${t.type === "success" ? "bg-[#180d35] text-[#b388ff] border border-[#2e1660]" : ""}
           ${t.type === "error" ? "bg-[#1a0a0a] text-red-300 border border-red-900/30" : ""}
-          ${t.type === "info" ? "bg-[#2563eb] text-white" : ""}`}>
+          ${t.type === "info" ? "bg-[#7c3aed] text-white" : ""}`}>
           {t.msg}
         </div>
       ))}
@@ -164,7 +163,7 @@ function useVoiceSearch(items, onResult, onError) {
   return { listening, start, stop, supported };
 }
 
-// ── BARCODE SCANNER (barcode-only, 1s debounce) ───────────────────────────────
+// ── BARCODE SCANNER ───────────────────────────────────────────────────────────
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -236,7 +235,7 @@ function BarcodeScanner({ onDetect, onClose }) {
               ["bottom-0 left-0","border-b-2 border-l-2"],["bottom-0 right-0","border-b-2 border-r-2"]
             ].map(([pos,brd],i) => <span key={i} className={`absolute w-6 h-6 ${pos} ${brd} border-white/70 rounded-sm`} />)}
             {status === "active" && (
-              <div className="absolute inset-x-0 h-0.5 bg-blue-400/70" style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }} />
+              <div className="absolute inset-x-0 h-0.5 bg-purple-400/70" style={{ top: 0, animation: "scanline 1.8s ease-in-out infinite" }} />
             )}
           </div>
         </div>
@@ -265,7 +264,7 @@ function BarcodeScanner({ onDetect, onClose }) {
   );
 }
 
-// ── SIMPLE ENTRY PAGE — matches the reference exactly ────────────────────────
+// ── HOME PAGE ─────────────────────────────────────────────────────────────────
 function HomePage({ onEnter, dark, setDark }) {
   const [entered, setEntered] = useState(false);
   const handleEnter = () => { setEntered(true); setTimeout(() => onEnter(), 600); };
@@ -273,7 +272,7 @@ function HomePage({ onEnter, dark, setDark }) {
   return (
     <div
       className={`min-h-screen flex flex-col items-center justify-between transition-all duration-600 ${entered ? "opacity-0 scale-105" : "opacity-100 scale-100"}`}
-      style={{ background: "linear-gradient(175deg, #4a90d9 0%, #2c6fbd 40%, #1a4f9c 70%, #163f82 100%)" }}
+      style={{ background: "linear-gradient(175deg, #6b3fd4 0%, #4a2098 40%, #2d1070 70%, #1a0a4e 100%)" }}
     >
       {/* top-right theme toggle */}
       <div className="w-full flex justify-end px-6 pt-8">
@@ -289,35 +288,48 @@ function HomePage({ onEnter, dark, setDark }) {
       {/* center content */}
       <div className="flex flex-col items-center gap-4 px-8 text-center">
         <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-2"
-          style={{ background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)" }}>
+          style={{ background: "rgba(160,100,255,0.25)", border: "1px solid rgba(160,100,255,0.4)" }}>
           <span className="text-3xl">🏪</span>
         </div>
-        <h1 className="text-white font-bold text-4xl tracking-tight" style={{ textShadow: "0 2px 20px rgba(0,0,0,0.2)" }}>
+        <h1 className="text-white font-bold text-4xl tracking-tight" style={{ textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>
           Annura Store
         </h1>
-        <p className="text-white/50 text-sm tracking-wide">Manage your store with ease</p>
+        <p className="text-white/50 text-sm tracking-wide">Bring your sales &amp; inventory together</p>
       </div>
 
-      {/* bottom: enter button + credit */}
+      {/* bottom: arrow button + feature pills + credit */}
       <div className="flex flex-col items-center gap-5 pb-14 w-full px-8">
+        {/* Arrow enter button */}
         <button
           onClick={handleEnter}
-          className="w-full max-w-xs py-4 rounded-2xl font-bold text-base tracking-wide transition-all active:scale-95"
+          className="w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95"
           style={{
-            background: "rgba(255,255,255,0.18)",
-            border: "1px solid rgba(255,255,255,0.3)",
+            background: "rgba(140,80,255,0.45)",
+            border: "1px solid rgba(160,100,255,0.5)",
             color: "white",
-            backdropFilter: "blur(10px)",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+            fontSize: "22px",
+            boxShadow: "0 4px 24px rgba(100,40,200,0.3)",
           }}
         >
-          Get Started
+          →
         </button>
+        <p className="text-white/30 text-[11px] tracking-[0.25em] uppercase">Tap to Open</p>
+
+        {/* Feature pills */}
+        <div className="flex gap-2 w-full max-w-xs">
+          {[["🖥", "POS"], ["📦", "Inventory"], ["☁", "Cloud"]].map(([icon, label]) => (
+            <div key={label} className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl"
+              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)" }}>
+              <span className="text-xs">{icon}</span>
+              <span className="text-white/50 text-[11px] font-medium">{label}</span>
+            </div>
+          ))}
+        </div>
 
         <div className="flex items-center gap-2">
-          <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.2)" }} />
-          <p className="text-white/30 text-[11px] tracking-[0.25em] uppercase">Developed by mjdev</p>
-          <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.2)" }} />
+          <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.15)" }} />
+          <p className="text-white/25 text-[11px] tracking-[0.25em] uppercase">Developed by mjdev</p>
+          <div className="h-px w-8" style={{ background: "rgba(255,255,255,0.15)" }} />
         </div>
       </div>
 
@@ -343,12 +355,9 @@ function CategoryComboBox({ value, onChange, allCategories, t }) {
   }, []);
 
   const filtered = allCategories.filter(c => !input.trim() || c.toLowerCase().includes(input.toLowerCase()));
-
   const select = (cat) => { onChange(cat); setInput(cat); setOpen(false); };
-
   const handleInput = (e) => { setInput(e.target.value); onChange(e.target.value); setOpen(true); };
-
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div ref={wrapRef} className="relative">
@@ -367,7 +376,7 @@ function CategoryComboBox({ value, onChange, allCategories, t }) {
           {input.trim() && !allCategories.find(c => c.toLowerCase() === input.trim().toLowerCase()) && (
             <button onMouseDown={(e) => { e.preventDefault(); select(input.trim()); }}
               className={`w-full flex items-center gap-2 px-4 py-3 text-sm ${t.suggestion} transition border-b ${t.border} text-left`}>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold">NEW</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-semibold">NEW</span>
               <span className={t.text}>Add "{input.trim()}"</span>
             </button>
           )}
@@ -424,7 +433,7 @@ function MenuTab({ items, addToast, t }) {
     (err) => addToast(err, "error")
   );
 
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
@@ -479,7 +488,7 @@ function MenuTab({ items, addToast, t }) {
           {categories.map(cat => (
             <button key={cat} onClick={() => setActiveCategory(cat)}
               className={`px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest transition-all border whitespace-nowrap
-                ${activeCategory === cat ? `${t.accentBg} ${t.accentText} border-transparent` : `${t.surface} ${t.border} ${t.textMuted} hover:border-blue-400/30`}`}>
+                ${activeCategory === cat ? `${t.accentBg} ${t.accentText} border-transparent` : `${t.surface} ${t.border} ${t.textMuted} hover:border-purple-400/30`}`}>
               {cat}
             </button>
           ))}
@@ -651,7 +660,7 @@ function PosTab({ items, addToast, addTransaction, t }) {
     setCashVal("");
   };
 
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-5xl mx-auto">
@@ -801,14 +810,49 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
     setError(""); setSaving(true);
     try {
       if (editingId) {
-        const payload = { name: name.trim(), price: parseFloat(price), barcode: barcode.trim() || null, category: category.trim() || null };
+        const dupName = items.find(
+          (i) => i.id !== editingId && i.name.toLowerCase() === name.trim().toLowerCase()
+        );
+        if (dupName) { setError("Another item with that name already exists."); setSaving(false); return; }
+
+        const trimmedBarcode = barcode.trim();
+        if (trimmedBarcode) {
+          const dupBarcode = items.find(
+            (i) => i.id !== editingId && i.barcode && i.barcode === trimmedBarcode
+          );
+          if (dupBarcode) { setError(`Barcode already used by "${dupBarcode.name}".`); setSaving(false); return; }
+        }
+
+        const payload = {
+          name: name.trim(),
+          price: parseFloat(price),
+          barcode: trimmedBarcode || null,
+          category: category.trim() || null,
+        };
         const { error: sbErr } = await supabase.from("items").update(payload).eq("id", editingId);
         if (sbErr) throw sbErr;
         setItems((prev) => prev.map((i) => i.id === editingId ? { ...i, ...payload } : i));
         addToast("Item updated!", "success"); cancelEdit();
       } else {
-        if (items.find((i) => i.name.toLowerCase() === name.trim().toLowerCase())) { setError("Item name already exists."); setSaving(false); return; }
-        const newItem = { id: uid(), name: name.trim(), price: parseFloat(price), barcode: barcode.trim() || null, category: category.trim() || null };
+        if (items.find((i) => i.name.toLowerCase() === name.trim().toLowerCase())) {
+          setError("An item with that name already exists."); setSaving(false); return;
+        }
+
+        const trimmedBarcode = barcode.trim();
+        if (trimmedBarcode) {
+          const dupBarcode = items.find((i) => i.barcode && i.barcode === trimmedBarcode);
+          if (dupBarcode) {
+            setError(`Barcode already used by "${dupBarcode.name}".`); setSaving(false); return;
+          }
+        }
+
+        const newItem = {
+          id: uid(),
+          name: name.trim(),
+          price: parseFloat(price),
+          barcode: trimmedBarcode || null,
+          category: category.trim() || null,
+        };
         const { error: sbErr } = await supabase.from("items").insert([newItem]);
         if (sbErr) throw sbErr;
         setItems((prev) => [...prev, newItem]);
@@ -838,7 +882,7 @@ function InventoryTab({ items, setItems, transactions, addToast, t }) {
 
   const cancelEdit = () => { setEditingId(null); setForm({ name: "", price: "", barcode: "", category: "" }); setError(""); };
 
-  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-blue-400/50 transition-all placeholder:opacity-30`;
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-base outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
@@ -1051,11 +1095,12 @@ export default function App() {
         @keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}
         .scrollbar-thin::-webkit-scrollbar{width:4px}
         .scrollbar-thin::-webkit-scrollbar-track{background:transparent}
-        .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:9999px}
+        .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(160,100,255,0.25);border-radius:9999px}
         .scrollbar-none::-webkit-scrollbar{display:none}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
       `}</style>
 
+      {/* Header */}
       <div className={`flex items-center justify-between px-5 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-40`}>
         <button onClick={() => setPage("home")} className="flex items-center gap-2.5">
           <span className="text-xl">🏪</span>
@@ -1072,7 +1117,7 @@ export default function App() {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
-          <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
           <p className={`text-sm ${t.textMuted} font-mono tracking-widest`}>Loading…</p>
         </div>
       ) : (
@@ -1083,6 +1128,7 @@ export default function App() {
         </>
       )}
 
+      {/* Bottom tab bar */}
       <div className={`fixed bottom-0 left-0 right-0 z-40 flex border-t ${t.border} ${t.headerBg} backdrop-blur-md`}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {tabs.map(({ id, icon, label }) => (
