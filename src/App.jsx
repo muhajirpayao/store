@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from "@zxing/library";
+import { createWorker } from "tesseract.js";
 
 let supabase;
 if (!globalThis.__supabase) {
@@ -15,7 +16,6 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 const fmt = (n) =>
   "₱" + parseFloat(n || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ── BEEP SOUND ────────────────────────────────────────────────────────────────
 function playBeep() {
   try {
     const audio = new Audio("/sound/barcodeBeep.mp3");
@@ -49,6 +49,96 @@ function fuzzyMatch(query, items) {
     .map((r) => r.item);
 }
 
+// receipt fuzzy — word-level, more lenient for OCR noise
+function receiptFuzzyScore(query, target) {
+  const q = query.toLowerCase().trim();
+  const t = target.toLowerCase().trim();
+  if (!q || !t) return 0;
+  if (t === q) return 100;
+  if (t.startsWith(q)) return 90;
+  if (t.includes(q)) return 80;
+  const qWords = q.split(/\s+/);
+  const tWords = t.split(/\s+/);
+  let hits = 0;
+  for (const qw of qWords) {
+    if (tWords.some((tw) => tw.startsWith(qw) || qw.startsWith(tw))) hits++;
+  }
+  const ratio = hits / Math.max(qWords.length, 1);
+  return ratio >= 0.5 ? Math.round(ratio * 75) : 0;
+}
+
+function findInventoryMatch(name, items) {
+  if (!items?.length) return null;
+  let best = null, bestScore = 0;
+  for (const item of items) {
+    const score = receiptFuzzyScore(name, item.name);
+    if (score > bestScore) { bestScore = score; best = item; }
+  }
+  return bestScore >= 40 ? best : null;
+}
+
+// Parse AFP-CES style receipt text
+// Format: ITEM NAME line, then qty @ unit_price  total line
+function parseReceiptText(rawText) {
+  const lines = rawText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const rows = [];
+  const skipPatterns = [
+    /^(total|cash|change|vatable|vat|register|invoice|s\/n|min|tin|camp|afp|date|time|page)/i,
+    /^[*\-=_.]{3,}$/,
+    /^cantor/i,
+    /^\d{4}$/,
+  ];
+
+  const qtyLineRe = /^(\d+)\s*@\s*([\d,]+\.?\d*)\s+([\d,]+\.?\d*)/;
+  const qtyLineRe2 = /^(\d+)\s*@\s*([\d,]+\.?\d*)/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (skipPatterns.some((r) => r.test(line))) continue;
+
+    const qtyMatch = line.match(qtyLineRe) || line.match(qtyLineRe2);
+    if (qtyMatch) {
+      const qty = parseInt(qtyMatch[1]);
+      const unitPrice = parseFloat(qtyMatch[2].replace(",", ""));
+      const totalPrice = qtyMatch[3]
+        ? parseFloat(qtyMatch[3].replace(",", ""))
+        : qty * unitPrice;
+
+      let nameIdx = i - 1;
+      while (
+        nameIdx >= 0 &&
+        (skipPatterns.some((r) => r.test(lines[nameIdx])) ||
+          lines[nameIdx].match(qtyLineRe) ||
+          /^[\d,]+\.\d{2}$/.test(lines[nameIdx]))
+      ) {
+        nameIdx--;
+      }
+      const name = nameIdx >= 0 ? lines[nameIdx] : null;
+
+      if (name && qty > 0 && unitPrice > 0 && name.length > 1) {
+        const dup = rows.find(
+          (r) => r.name === name && r.unitPrice === unitPrice
+        );
+        if (!dup) {
+          rows.push({
+            name,
+            qty,
+            unitPrice,
+            totalPrice: totalPrice || qty * unitPrice,
+          });
+        }
+      }
+      continue;
+    }
+    if (/^[\d,]+\.\d{2}$/.test(line)) continue;
+  }
+  return rows;
+}
+
 const DEFAULT_CATEGORIES = [
   "Beverages", "Snacks", "Dairy", "Canned Goods", "Instant Noodles",
   "Condiments", "Personal Care", "Household", "Frozen Foods", "Bakery",
@@ -57,7 +147,6 @@ const DEFAULT_CATEGORIES = [
 
 const DEFAULT_PIN = "9800";
 
-// ── THEME ─────────────────────────────────────────────────────────────────────
 const T = {
   dark: {
     bg: "bg-[#0e0720]",
@@ -113,7 +202,6 @@ const T = {
   },
 };
 
-// ── TOAST ─────────────────────────────────────────────────────────────────────
 function Toast({ toasts }) {
   return (
     <div className="fixed bottom-6 right-4 flex flex-col gap-2 pointer-events-none z-50">
@@ -140,7 +228,6 @@ function MicIcon({ listening }) {
   );
 }
 
-// ── HAMBURGER ICON ────────────────────────────────────────────────────────────
 function HamburgerIcon({ dark }) {
   const color = dark ? "#9b72cc" : "#6b3fa8";
   return (
@@ -190,7 +277,6 @@ function useVoiceSearch(items, onResult, onError) {
   return { listening, start, stop, supported };
 }
 
-// ── BARCODE SCANNER ───────────────────────────────────────────────────────────
 function BarcodeScanner({ onDetect, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -292,7 +378,6 @@ function BarcodeScanner({ onDetect, onClose }) {
   );
 }
 
-// ── PIN LOCK SCREEN ───────────────────────────────────────────────────────────
 function PinScreen({ onUnlock }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
@@ -332,7 +417,6 @@ function PinScreen({ onUnlock }) {
           <p className="text-white font-bold text-xl text-center tracking-widest">Enter PIN</p>
           <p className="text-white/40 text-xs text-center mt-1">Annura Store</p>
         </div>
-
         <div className={`flex gap-4 ${shake ? "animate-[shake_0.4s_ease-in-out]" : ""}`}>
           {Array.from({ length: Math.max(savedPin.length, 4) }).map((_, i) => (
             <div key={i} className={`w-3.5 h-3.5 rounded-full transition-all duration-150 border-2
@@ -341,9 +425,7 @@ function PinScreen({ onUnlock }) {
                 : "border-white/30 bg-transparent"}`} />
           ))}
         </div>
-
         {error && <p className="text-red-400 text-sm -mt-4">Incorrect PIN</p>}
-
         <div className="grid grid-cols-3 gap-3 w-full">
           {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((k, i) => (
             <button key={i} onClick={() => k === "⌫" ? del() : k ? press(k) : null}
@@ -363,7 +445,6 @@ function PinScreen({ onUnlock }) {
   );
 }
 
-// ── HOME PAGE ─────────────────────────────────────────────────────────────────
 function HomePage({ onEnter, dark, setDark }) {
   const [entered, setEntered] = useState(false);
   const handleEnter = () => { setEntered(true); setTimeout(() => onEnter(), 600); };
@@ -380,7 +461,6 @@ function HomePage({ onEnter, dark, setDark }) {
           {dark ? "☀" : "☽"}
         </button>
       </div>
-
       <div className="flex flex-col items-center gap-4 px-8 text-center">
         <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-2"
           style={{ background: "rgba(160,100,255,0.25)", border: "1px solid rgba(160,100,255,0.4)" }}>
@@ -391,7 +471,6 @@ function HomePage({ onEnter, dark, setDark }) {
         </h1>
         <p className="text-white/50 text-sm tracking-wide">Bring your sales &amp; inventory together</p>
       </div>
-
       <div className="flex flex-col items-center gap-5 pb-14 w-full px-8">
         <button onClick={handleEnter}
           className="w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95"
@@ -419,7 +498,6 @@ function HomePage({ onEnter, dark, setDark }) {
   );
 }
 
-// ── CATEGORY COMBOBOX ─────────────────────────────────────────────────────────
 function CategoryComboBox({ value, onChange, allCategories, t }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState(value || "");
@@ -470,7 +548,6 @@ function CategoryComboBox({ value, onChange, allCategories, t }) {
   );
 }
 
-// ── RECEIPT MODAL ─────────────────────────────────────────────────────────────
 function ReceiptModal({ receipt, onClose, t }) {
   const printRef = useRef(null);
   const handlePrint = () => {
@@ -545,7 +622,6 @@ function ReceiptModal({ receipt, onClose, t }) {
   );
 }
 
-// ── MENU TAB ──────────────────────────────────────────────────────────────────
 function MenuTab({ items, addToast, t }) {
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -674,7 +750,6 @@ function MenuTab({ items, addToast, t }) {
   );
 }
 
-// ── POS TAB ───────────────────────────────────────────────────────────────────
 function PosTab({ items, addToast, addTransaction, t }) {
   const [receipt, setReceipt] = useState(null);
   const [cart, setCart] = useState([]);
@@ -878,7 +953,6 @@ function PosTab({ items, addToast, addTransaction, t }) {
   );
 }
 
-// ── INVENTORY TAB ─────────────────────────────────────────────────────────────
 function InventoryTab({ items, setItems, addToast, t }) {
   const [form, setForm] = useState({ name: "", price: "", barcode: "", category: "" });
   const [editingId, setEditingId] = useState(null);
@@ -1053,7 +1127,6 @@ function InventoryTab({ items, setItems, addToast, t }) {
   );
 }
 
-// ── REPORTS TAB ───────────────────────────────────────────────────────────────
 function ReportsTab({ transactions, t }) {
   const [period, setPeriod] = useState("daily");
   const now = new Date();
@@ -1170,8 +1243,424 @@ function ReportsTab({ transactions, t }) {
   );
 }
 
+// ── STOCK RECEIPT SCANNER ─────────────────────────────────────────────────────
+function StockReceiptScanner({ items, setItems, addToast, t }) {
+  const [phase, setPhase] = useState("idle"); // idle | capturing | processing | reviewing | saving | done
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrStatus, setOcrStatus] = useState("");
+  const [rows, setRows] = useState([]);
+  const [search, setSearch] = useState("");
+  const [savingCount, setSavingCount] = useState(0);
+
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; stopCamera(); };
+  }, []);
+
+  const stopCamera = () => {
+    if (streamRef.current) { streamRef.current.getTracks().forEach((tr) => tr.stop()); streamRef.current = null; }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  const startCamera = async () => {
+    setPhase("capturing");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
+      if (!mountedRef.current) { stream.getTracks().forEach((tr) => tr.stop()); return; }
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.muted = true;
+        await videoRef.current.play();
+      }
+    } catch (e) {
+      addToast("Camera error: " + (e.message || "unavailable"), "error");
+      setPhase("idle");
+    }
+  };
+
+  const captureAndOCR = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    stopCamera();
+    runOCR(canvas.toDataURL("image/jpeg", 0.95));
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => runOCR(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const runOCR = async (imageData) => {
+    setPhase("processing");
+    setOcrProgress(0);
+    setOcrStatus("Starting OCR engine…");
+    try {
+      const worker = await createWorker("eng", 1, {
+        logger: (m) => {
+          if (!mountedRef.current) return;
+          if (m.status === "loading tesseract core") setOcrStatus("Loading OCR engine…");
+          else if (m.status === "loading language traineddata") setOcrStatus("Loading language data…");
+          else if (m.status === "recognizing text") {
+            setOcrStatus("Reading receipt text…");
+            setOcrProgress(Math.round(m.progress * 100));
+          }
+        },
+      });
+      await worker.setParameters({ tessedit_pageseg_mode: "6" });
+      const { data } = await worker.recognize(imageData);
+      await worker.terminate();
+      if (!mountedRef.current) return;
+
+      const parsed = parseReceiptText(data.text);
+      if (!parsed.length) {
+        addToast("No items found. Try better lighting or a clearer photo.", "error");
+        setPhase("idle");
+        return;
+      }
+
+      const enriched = parsed.map((row) => ({
+        ...row,
+        id: uid(),
+        match: findInventoryMatch(row.name, items),
+        include: true,
+        editedPrice: String(row.unitPrice),
+      }));
+      setRows(enriched);
+      setPhase("reviewing");
+    } catch (e) {
+      if (mountedRef.current) {
+        addToast("OCR failed: " + (e.message || "unknown error"), "error");
+        setPhase("idle");
+      }
+    }
+  };
+
+  const toggleRow = (id) => setRows((prev) => prev.map((r) => r.id === id ? { ...r, include: !r.include } : r));
+  const updatePrice = (id, val) => setRows((prev) => prev.map((r) => r.id === id ? { ...r, editedPrice: val } : r));
+  const selectAll = () => setRows((prev) => prev.map((r) => ({ ...r, include: true })));
+  const deselectAll = () => setRows((prev) => prev.map((r) => ({ ...r, include: false })));
+
+  const saveAll = async () => {
+    const toSave = rows.filter((r) => r.include && r.match);
+    if (!toSave.length) { addToast("No matched items selected.", "error"); return; }
+    setPhase("saving");
+    setSavingCount(0);
+    let saved = 0, failed = 0;
+    for (let i = 0; i < toSave.length; i++) {
+      const row = toSave[i];
+      const price = parseFloat(row.editedPrice);
+      if (isNaN(price) || price <= 0) { failed++; continue; }
+      try {
+        const { error } = await supabase.from("items").update({ price }).eq("id", row.match.id);
+        if (error) throw error;
+        setItems((prev) => prev.map((it) => it.id === row.match.id ? { ...it, price } : it));
+        saved++;
+        setSavingCount(i + 1);
+      } catch { failed++; }
+    }
+    if (saved > 0) addToast(`✓ ${saved} item${saved !== 1 ? "s" : ""} price updated!`, "success");
+    if (failed > 0) addToast(`${failed} failed to save.`, "error");
+    setPhase("done");
+  };
+
+  const reset = () => { setPhase("idle"); setRows([]); setSearch(""); setOcrProgress(0); };
+
+  const filteredRows = search.trim()
+    ? rows.filter((r) =>
+        r.name.toLowerCase().includes(search.toLowerCase()) ||
+        (r.match?.name || "").toLowerCase().includes(search.toLowerCase()))
+    : rows;
+
+  const matchedCount = rows.filter((r) => r.match).length;
+  const newCount = rows.filter((r) => !r.match).length;
+  const includedCount = rows.filter((r) => r.include && r.match).length;
+
+  const inputCls = `w-full ${t.input} border ${t.border} rounded-xl ${t.text} px-3 py-2.5 text-sm outline-none focus:border-purple-400/50 transition-all placeholder:opacity-30`;
+
+  return (
+    <div className="flex flex-col gap-4">
+
+      {/* Header */}
+      <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm`}>
+        <div className="flex items-start gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${t.card} border ${t.border}`}>🧾</div>
+          <div>
+            <p className={`text-sm font-bold ${t.text}`}>Stock Receipt Scanner</p>
+            <p className={`text-xs ${t.textMuted} mt-0.5 leading-relaxed`}>
+              Take a photo of your supplier receipt (AFP-CES, market, etc). The app reads every item name,
+              quantity, and price — then updates your inventory in one tap.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── IDLE ── */}
+      {phase === "idle" && (
+        <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm flex flex-col gap-4`}>
+          <p className={`text-xs uppercase tracking-widest font-semibold ${t.textMuted}`}>Choose input</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={startCamera}
+              className={`flex flex-col items-center gap-2 py-5 rounded-xl border-2 ${t.border} ${t.card} transition-all active:scale-95`}>
+              <span className="text-2xl">📷</span>
+              <span className={`text-xs font-semibold ${t.text}`}>Use Camera</span>
+              <span className={`text-[10px] ${t.textMuted} text-center px-2`}>Point at receipt</span>
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              className={`flex flex-col items-center gap-2 py-5 rounded-xl border-2 ${t.border} ${t.card} transition-all active:scale-95`}>
+              <span className="text-2xl">🖼️</span>
+              <span className={`text-xs font-semibold ${t.text}`}>Upload Photo</span>
+              <span className={`text-[10px] ${t.textMuted} text-center px-2`}>From gallery</span>
+            </button>
+          </div>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+
+          <div className={`${t.card} border ${t.border} rounded-xl p-3`}>
+            <p className={`text-xs font-semibold ${t.text} mb-2`}>💡 Tips for best scan results</p>
+            {[
+              "Lay receipt flat on a dark surface",
+              "Use bright even lighting — no shadows on text",
+              "Hold camera directly above, not at an angle",
+              "Make sure all item lines are visible in frame",
+            ].map((tip, i) => (
+              <p key={i} className={`text-[11px] ${t.textMuted} flex gap-1.5 mt-1`}>
+                <span className="text-purple-400">·</span>{tip}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── CAMERA ── */}
+      {phase === "capturing" && (
+        <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden shadow-sm`}>
+          <div className="relative bg-black" style={{ minHeight: 320 }}>
+            <video ref={videoRef} className="w-full block" muted playsInline style={{ maxHeight: 440, objectFit: "cover" }} />
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="relative" style={{ width: "68%", height: "76%", boxShadow: "0 0 0 9999px rgba(0,0,0,0.52)", borderRadius: 6 }}>
+                {[["top-0 left-0","border-t-2 border-l-2"],["top-0 right-0","border-t-2 border-r-2"],
+                  ["bottom-0 left-0","border-b-2 border-l-2"],["bottom-0 right-0","border-b-2 border-r-2"]
+                ].map(([pos, brd], i) => (
+                  <span key={i} className={`absolute w-6 h-6 ${pos} ${brd} border-white/80 rounded-sm`} />
+                ))}
+                <div className="absolute inset-x-0 h-0.5 bg-purple-400/70" style={{ top: 0, animation: "scanline 2s ease-in-out infinite" }} />
+              </div>
+            </div>
+            <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+              <span className="text-xs text-white/60 bg-black/60 px-3 py-1.5 rounded-full">
+                Fit the entire receipt inside the frame
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2 p-3">
+            <button onClick={captureAndOCR}
+              className={`flex-1 ${t.accentBg} text-white font-bold py-3 rounded-xl text-sm active:scale-95 transition-all`}>
+              📸 Capture Receipt
+            </button>
+            <button onClick={() => { stopCamera(); setPhase("idle"); }}
+              className={`${t.btnSec} border ${t.border} px-4 py-3 rounded-xl text-sm`}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── PROCESSING ── */}
+      {phase === "processing" && (
+        <div className={`${t.surface} border ${t.border} rounded-2xl p-10 flex flex-col items-center gap-5 shadow-sm`}>
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-2 border-purple-400/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-purple-400 animate-spin" />
+            <span className="absolute inset-0 flex items-center justify-center text-2xl">🧾</span>
+          </div>
+          <div className="text-center">
+            <p className={`text-sm font-semibold ${t.text}`}>{ocrStatus || "Reading receipt…"}</p>
+            <p className={`text-xs ${t.textMuted} mt-1`}>Please wait, this takes 10–25 seconds</p>
+          </div>
+          {ocrProgress > 0 && (
+            <div className="w-full max-w-xs">
+              <div className={`flex justify-between text-xs ${t.textMuted} mb-1.5`}>
+                <span>Scanning text</span>
+                <span className="font-mono font-semibold text-purple-400">{ocrProgress}%</span>
+              </div>
+              <div className={`h-2 rounded-full ${t.card} overflow-hidden`}>
+                <div className="h-full bg-purple-500 rounded-full transition-all duration-300" style={{ width: ocrProgress + "%" }} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── REVIEWING / SAVING / DONE ── */}
+      {(phase === "reviewing" || phase === "saving" || phase === "done") && rows.length > 0 && (
+        <div className="flex flex-col gap-3">
+
+          {/* Summary */}
+          <div className={`${t.surface} border ${t.border} rounded-2xl p-4 shadow-sm`}>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {[
+                { label: "Total Found", value: rows.length, icon: "📋" },
+                { label: "In Inventory", value: matchedCount, icon: "✅", color: "text-emerald-400" },
+                { label: "New Items", value: newCount, icon: "🆕", color: "text-purple-400" },
+              ].map(({ label, value, icon, color }) => (
+                <div key={label} className={`${t.card} border ${t.border} rounded-xl p-3 text-center`}>
+                  <p className="text-lg">{icon}</p>
+                  <p className={`text-xl font-black font-mono ${color || t.accent}`}>{value}</p>
+                  <p className={`text-[10px] uppercase tracking-widest ${t.textMuted} mt-0.5`}>{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Search */}
+            <div className={`flex items-center gap-2 ${t.input} border ${t.border} rounded-xl px-3 py-2 mb-3`}>
+              <span className={`text-sm ${t.textFaint}`}>🔍</span>
+              <input className={`flex-1 bg-transparent ${t.text} text-sm outline-none placeholder:opacity-40`}
+                placeholder="Search scanned items…"
+                value={search} onChange={(e) => setSearch(e.target.value)} />
+              {search && <button onClick={() => setSearch("")} className={`text-xs ${t.textMuted} hover:text-red-400 transition`}>✕</button>}
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={selectAll} className={`flex-1 text-xs ${t.btnSec} border ${t.border} py-2 rounded-xl font-medium transition`}>
+                ✓ Select All Matched
+              </button>
+              <button onClick={deselectAll} className={`flex-1 text-xs ${t.btnSec} border ${t.border} py-2 rounded-xl font-medium transition`}>
+                ✕ Deselect All
+              </button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className={`${t.surface} border ${t.border} rounded-2xl overflow-hidden shadow-sm`}>
+            {/* Header */}
+            <div className={`grid text-[10px] uppercase tracking-widest font-bold ${t.textMuted} px-3 py-2.5 border-b ${t.border} ${t.tblHead}`}
+              style={{ gridTemplateColumns: "1.6rem 1fr 3rem 5rem 3rem" }}>
+              <div />
+              <div>Item name</div>
+              <div className="text-center">Qty</div>
+              <div className="text-right">Unit price</div>
+              <div className="text-center">Status</div>
+            </div>
+
+            {/* Rows */}
+            <div className={`divide-y ${t.divide} overflow-y-auto scrollbar-thin`}>
+              {filteredRows.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className={`text-sm ${t.textFaint}`}>No items match "{search}"</p>
+                </div>
+              ) : filteredRows.map((row) => (
+                <div key={row.id}
+                  className={`grid items-center gap-1 px-3 py-2.5 transition ${t.rowHov} ${!row.include ? "opacity-40" : ""}`}
+                  style={{ gridTemplateColumns: "1.6rem 1fr 3rem 5rem 3rem" }}>
+
+                  {/* Checkbox */}
+                  <div className="flex items-center justify-center">
+                    <input type="checkbox" checked={row.include} onChange={() => toggleRow(row.id)}
+                      disabled={phase !== "reviewing"}
+                      className="w-3.5 h-3.5 accent-purple-500 cursor-pointer" />
+                  </div>
+
+                  {/* Name */}
+                  <div className="min-w-0">
+                    <p className={`text-xs font-semibold ${t.text} truncate leading-tight`}>{row.name}</p>
+                    {row.match
+                      ? <p className={`text-[10px] ${t.textMuted} truncate mt-0.5`}>→ {row.match.name}</p>
+                      : <p className="text-[10px] text-purple-400 mt-0.5">not in inventory</p>}
+                  </div>
+
+                  {/* Qty */}
+                  <div className={`text-center text-xs font-mono font-bold ${t.textMuted}`}>{row.qty}</div>
+
+                  {/* Price */}
+                  <div className="flex items-center gap-0.5 justify-end">
+                    <span className={`text-[10px] ${t.textMuted}`}>₱</span>
+                    <input type="number" min="0" step="0.01"
+                      value={row.editedPrice}
+                      disabled={phase !== "reviewing"}
+                      onChange={(e) => updatePrice(row.id, e.target.value)}
+                      className={`w-full ${t.input} border ${t.border} rounded-lg ${t.text} px-1.5 py-1 text-xs text-right outline-none font-mono focus:border-purple-400/50 disabled:opacity-60`} />
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex justify-center">
+                    {row.match
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold whitespace-nowrap">✓ match</span>
+                      : <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${t.badge} font-semibold`}>new</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer total */}
+            <div className={`flex items-center justify-between px-4 py-3 border-t ${t.border} ${t.tblHead}`}>
+              <span className={`text-xs font-semibold ${t.textMuted}`}>
+                {includedCount} of {matchedCount} matched selected
+              </span>
+              <span className={`text-xs font-mono font-bold ${t.accent}`}>
+                Receipt total: {fmt(rows.reduce((s, r) => s + r.totalPrice, 0))}
+              </span>
+            </div>
+          </div>
+
+          {/* Actions */}
+          {phase === "reviewing" && (
+            <div className="flex gap-2">
+              <button onClick={saveAll} disabled={includedCount === 0}
+                className={`flex-1 disabled:opacity-40 ${t.accentBg} text-white font-bold py-3 rounded-xl text-sm transition-all active:scale-95`}>
+                💾 Update {includedCount} Item{includedCount !== 1 ? "s" : ""} in Inventory
+              </button>
+              <button onClick={reset} className={`${t.btnSec} border ${t.border} px-4 py-3 rounded-xl text-sm transition`}>✕</button>
+            </div>
+          )}
+
+          {phase === "saving" && (
+            <div className={`${t.surface} border ${t.border} rounded-2xl p-5 flex items-center gap-4 shadow-sm`}>
+              <div className="w-6 h-6 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+              <div>
+                <p className={`text-sm font-semibold ${t.text}`}>Saving to inventory…</p>
+                <p className={`text-xs ${t.textMuted}`}>{savingCount} of {includedCount} updated</p>
+              </div>
+            </div>
+          )}
+
+          {phase === "done" && (
+            <div className="flex gap-2">
+              <div className={`flex-1 flex items-center gap-3 ${t.surface} border border-emerald-500/30 bg-emerald-500/5 rounded-xl px-4 py-3`}>
+                <span className="text-lg">✅</span>
+                <p className={`text-sm font-semibold ${t.text}`}>Inventory updated successfully!</p>
+              </div>
+              <button onClick={reset}
+                className={`${t.accentBg} text-white font-bold px-5 py-3 rounded-xl text-sm transition active:scale-95`}>
+                New Scan
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── SETTINGS PANEL ────────────────────────────────────────────────────────────
-function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, setTransactions, items }) {
+function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, setTransactions, items, setItems }) {
   const [section, setSection] = useState(null);
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -1225,6 +1714,7 @@ function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, set
   };
 
   const menuItems = [
+    { id: "stockreceipt", icon: "🧾", label: "Stock Receipt" },
     { id: "pin", icon: "🔑", label: "Change PIN" },
     { id: "printer", icon: "🖨️", label: "Printer Setup" },
     { id: "backup", icon: "💾", label: "Backup & Restore" },
@@ -1248,7 +1738,6 @@ function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, set
               </button>
             ))}
           </div>
-
           <button onClick={() => { if (window.confirm("Log out?")) onLogout(); }}
             className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 transition">
             <span className="text-xl">🚪</span>
@@ -1261,6 +1750,10 @@ function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, set
             className={`flex items-center gap-2 mb-4 ${t.textMuted} transition text-sm`}>
             ‹ Back to Settings
           </button>
+
+          {section === "stockreceipt" && (
+            <StockReceiptScanner items={items} setItems={setItems} addToast={addToast} t={t} />
+          )}
 
           {section === "pin" && (
             <div className={`${t.surface} border ${t.border} rounded-2xl p-5 shadow-sm`}>
@@ -1344,6 +1837,7 @@ function SettingsPanel({ t, dark, setDark, onLogout, addToast, transactions, set
                 { q: "How does barcode scanning work?", a: "Tap the 📷 button in POS or Inventory to open the camera scanner." },
                 { q: "How do I change my PIN?", a: "Settings → Change PIN → enter and confirm your new PIN." },
                 { q: "Where is my data stored?", a: "Items are stored in Supabase (cloud). Transactions are stored locally and can be backed up." },
+                { q: "How does Stock Receipt work?", a: "Settings → Stock Receipt → take a photo of your supplier receipt. It reads all item names, quantities, and prices, then updates your inventory prices in one tap." },
               ].map(({ q, a }) => (
                 <div key={q} className={`${t.card} border ${t.border} rounded-xl p-4`}>
                   <p className={`text-sm font-semibold ${t.text} mb-1`}>{q}</p>
@@ -1370,27 +1864,15 @@ function NavDrawer({ open, onClose, tab, setTab, dark, setDark, onLogout, t }) {
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300
+      <div className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300
           ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-        onClick={onClose}
-      />
-
-      {/* Drawer panel */}
-      <div
-        className={`fixed top-0 left-0 bottom-0 z-50 w-72 ${t.drawerBg} border-r ${t.border} flex flex-col
-          transition-transform duration-300 ease-in-out
-          ${open ? "translate-x-0" : "-translate-x-full"}`}
-      >
-        {/* Profile / store header */}
+        onClick={onClose} />
+      <div className={`fixed top-0 left-0 bottom-0 z-50 w-72 ${t.drawerBg} border-r ${t.border} flex flex-col
+          transition-transform duration-300 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className={`p-5 pt-8 border-b ${t.border}`}>
           <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${t.card} border ${t.border}`}>
-              🏪
-            </div>
-            <button
-              onClick={onClose}
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${t.card} border ${t.border}`}>🏪</div>
+            <button onClick={onClose}
               className={`w-8 h-8 rounded-xl ${t.card} border ${t.border} flex items-center justify-center ${t.textMuted} text-sm transition ${t.hover}`}>
               ✕
             </button>
@@ -1398,50 +1880,29 @@ function NavDrawer({ open, onClose, tab, setTab, dark, setDark, onLogout, t }) {
           <p className={`text-sm font-bold ${t.text} tracking-wide`}>Annura Store</p>
           <p className={`text-xs ${t.textMuted} mt-0.5`}>POS System</p>
         </div>
-
-        {/* Nav items */}
         <nav className="flex-1 p-3 overflow-y-auto flex flex-col gap-1">
           <p className={`text-[10px] uppercase tracking-[0.2em] font-bold ${t.textFaint} px-3 py-2`}>Navigation</p>
           {tabs.map(({ id, icon, label }) => (
-            <button
-              key={id}
-              onClick={() => { setTab(id); onClose(); }}
+            <button key={id} onClick={() => { setTab(id); onClose(); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-left transition-all
-                ${tab === id
-                  ? `${t.accentBg} text-white shadow-sm`
-                  : `${t.textMuted} ${t.hover}`}`}
-            >
+                ${tab === id ? `${t.accentBg} text-white shadow-sm` : `${t.textMuted} ${t.hover}`}`}>
               <span className="text-base w-6 text-center">{icon}</span>
               <span className="flex-1">{label}</span>
-              {tab === id && (
-                <span className="w-1.5 h-1.5 rounded-full bg-white/70 shrink-0" />
-              )}
+              {tab === id && <span className="w-1.5 h-1.5 rounded-full bg-white/70 shrink-0" />}
             </button>
           ))}
         </nav>
-
-        {/* Footer */}
         <div className={`p-3 border-t ${t.border} flex flex-col gap-1`}>
-          {/* Dark mode toggle row */}
-          <button
-            onClick={() => setDark(d => !d)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${t.textMuted} ${t.hover}`}
-          >
+          <button onClick={() => setDark(d => !d)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${t.textMuted} ${t.hover}`}>
             <span className="text-base w-6 text-center">{dark ? "☀" : "☽"}</span>
             <span className="flex-1">{dark ? "Light Mode" : "Dark Mode"}</span>
             <span className={`w-8 h-4 rounded-full transition-all relative ${dark ? "bg-[#7c3aed]" : "bg-gray-400"}`}>
               <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${dark ? "left-4" : "left-0.5"}`} />
             </span>
           </button>
-
-          {/* Logout */}
-          <button
-            onClick={() => {
-              onClose();
-              if (window.confirm("Log out?")) onLogout();
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition text-left"
-          >
+          <button onClick={() => { onClose(); if (window.confirm("Log out?")) onLogout(); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 transition text-left">
             <span className="text-base w-6 text-center">🚪</span>
             Log Out
           </button>
@@ -1503,7 +1964,6 @@ export default function App() {
     try { localStorage.setItem("annura_theme", dark ? "dark" : "light"); } catch {}
   }, [dark]);
 
-  // Home page
   if (page === "home") {
     return (
       <>
@@ -1513,7 +1973,6 @@ export default function App() {
     );
   }
 
-  // PIN lock screen
   if (locked) {
     return <PinScreen onUnlock={() => setLocked(false)} />;
   }
@@ -1537,49 +1996,31 @@ export default function App() {
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
       `}</style>
 
-      {/* Header */}
       <div className={`flex items-center justify-between px-4 py-3 border-b ${t.border} ${t.headerBg} backdrop-blur-md sticky top-0 z-30`}>
         <div className="flex items-center gap-3">
-          {/* Hamburger */}
-          <button
-            onClick={() => setDrawerOpen(true)}
-            className={`w-9 h-9 rounded-xl border ${t.border} ${t.card} flex flex-col items-center justify-center  transition ${t.hover}`}
-            aria-label="Open menu"
-          >
+          <button onClick={() => setDrawerOpen(true)}
+            className={`w-9 h-9 rounded-xl border ${t.border} ${t.card} flex flex-col items-center justify-center transition ${t.hover}`}
+            aria-label="Open menu">
             <HamburgerIcon dark={dark} />
           </button>
-
-          {/* Store name / back to home */}
           <button onClick={() => setPage("home")} className="flex items-center gap-2">
             <span className="text-xl">🏪</span>
             <div>
               <p className={`text-sm font-extrabold ${t.accent} leading-none tracking-widest`}>ANNURA STORE</p>
-              <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>
-                {tabLabels[tab]}
-              </p>
+              <p className={`text-[10px] ${t.textFaint} leading-none mt-0.5 font-mono uppercase tracking-widest`}>{tabLabels[tab]}</p>
             </div>
           </button>
         </div>
-
-        {/* Right side: current tab badge */}
         <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${t.badge}`}>
           {tabLabels[tab]}
         </div>
       </div>
 
-      {/* Drawer */}
-      <NavDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        tab={tab}
-        setTab={setTab}
-        dark={dark}
-        setDark={setDark}
+      <NavDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}
+        tab={tab} setTab={setTab} dark={dark} setDark={setDark}
         onLogout={() => { setLocked(true); try { localStorage.setItem("annura_locked", "true"); } catch {} }}
-        t={t}
-      />
+        t={t} />
 
-      {/* Page content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-28 gap-4">
           <div className="w-8 h-8 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
@@ -1599,6 +2040,7 @@ export default function App() {
               transactions={transactions}
               setTransactions={setTransactions}
               items={items}
+              setItems={setItems}
             />
           )}
         </div>
